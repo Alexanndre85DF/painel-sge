@@ -159,8 +159,9 @@ def calcula_indicadores(df):
 # -----------------------------
 st.markdown("""
 <div style="text-align: center; padding: 40px 20px; background: #ffffff; border: 2px solid #1e3a8a; border-radius: 8px; margin-bottom: 30px;">
-    <h1 style="color: #1e3a8a; margin: 0; font-size: 2.5em; font-weight: 700;">Painel SGE</h1>
-    <h2 style="color: #1e40af; margin: 10px 0 0 0; font-weight: 400; font-size: 1.4em;">Notas, Riscos e Alertas</h2>
+    <h1 style="color: #1e3a8a; margin: 0; font-size: 2.2em; font-weight: 700;">Superintendência Regional de Educação de Gurupi TO</h1>
+    <h2 style="color: #1e40af; margin: 15px 0 0 0; font-weight: 600; font-size: 1.8em;">Painel SGE</h2>
+    <h3 style="color: #1e40af; margin: 10px 0 0 0; font-weight: 400; font-size: 1.4em;">Notas, Frequência, Riscos e Alertas</h3>
     <p style="color: #64748b; margin: 10px 0 0 0; font-size: 1.1em;">Análise dos 1º e 2º Bimestres</p>
 </div>
 """, unsafe_allow_html=True)
@@ -191,7 +192,7 @@ except FileNotFoundError:
         <div style="text-align: center; margin-top: 40px; padding: 20px;">
             <p style="margin: 0;">
                 Desenvolvido por <strong style="color: #1e40af;">Alexandre Tolentino</strong> • 
-                <em>Painel SGE - Sistema de Gestão Escolar</em>
+                <em>Painel SGE</em>
             </p>
         </div>
         """, 
