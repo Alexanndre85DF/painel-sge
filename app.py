@@ -703,7 +703,7 @@ with st.expander(expander_title):
         else:
             freq_detalhada = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
         freq_detalhada["Classificacao_Freq"] = freq_detalhada["Frequencia"].apply(classificar_frequencia)
-        freq_detalhada = freq_detalhada.sort_values(["Turma", "Aluno"])
+        freq_detalhada = freq_detalhada.sort_values(["Aluno"])
         
         # Função para colorir frequência
         def color_frequencia(val):
@@ -726,7 +726,7 @@ with st.expander(expander_title):
         )
         
         # Aplicar cores
-        styled_freq = freq_detalhada[["Aluno", "Turma", "Frequencia_Formatada", "Classificacao_Freq"]]\
+        styled_freq = freq_detalhada[["Aluno", "Frequencia_Formatada", "Classificacao_Freq"]]\
             .style.applymap(color_frequencia, subset=["Classificacao_Freq"])
         
         st.dataframe(styled_freq, use_container_width=True)
@@ -764,7 +764,7 @@ with st.expander("Análise Cruzada: Notas x Frequência"):
         freq_alunos["Classificacao_Freq"] = freq_alunos["Frequencia"].apply(classificar_frequencia)
         
         # Merge com indicadores de notas
-        cruzada = indic.merge(freq_alunos, on=["Aluno", "Turma"], how="left")
+        cruzada = indic.merge(freq_alunos, on=["Aluno"], how="left")
         
         # Criar matriz de cruzamento
         matriz_cruzada = cruzada.groupby(["Classificacao", "Classificacao_Freq"]).size().unstack(fill_value=0)
@@ -779,7 +779,7 @@ with st.expander("Análise Cruzada: Notas x Frequência"):
             if len(freq_baixa) > 0:
                 st.markdown("### Alunos com Frequência Abaixo de 95%")
                 # Mostrar apenas colunas relevantes para frequência baixa
-                freq_baixa_display = freq_baixa[["Aluno", "Turma", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
+                freq_baixa_display = freq_baixa[["Aluno", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
                 # Formatar frequência
                 freq_baixa_display["Frequencia"] = freq_baixa_display["Frequencia"].apply(
                     lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
