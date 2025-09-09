@@ -512,6 +512,10 @@ col5, col6 = st.columns(2)
 alerta_count = int(indic["Alerta"].sum())
 corda_bamba_count = int(indic["CordaBamba"].sum())
 
+# Calcular alunos únicos em alerta e corda bamba
+alunos_unicos_alerta = indic[indic["Alerta"]]["Aluno"].nunique()
+alunos_unicos_corda_bamba = indic[indic["CordaBamba"]]["Aluno"].nunique()
+
 with col5:
     st.markdown("""
     <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; border-radius: 4px; margin: 10px 0;">
@@ -520,8 +524,8 @@ with col5:
     """, unsafe_allow_html=True)
     st.metric(
         label="", 
-        value=alerta_count,
-        help="Alunos em situação de risco (Vermelho Duplo, Queda p/ Vermelho ou Corda Bamba)"
+        value=f"{alerta_count} ({alunos_unicos_alerta} alunos)",
+        help="Alunos-disciplinas em situação de risco (Vermelho Duplo, Queda p/ Vermelho ou Corda Bamba). O número entre parênteses mostra quantos alunos únicos estão em alerta."
     )
 
 with col6:
@@ -532,8 +536,8 @@ with col6:
     """, unsafe_allow_html=True)
     st.metric(
         label="", 
-        value=corda_bamba_count,
-        help="Alunos que precisam de média ≥ 7 nos próximos 2 bimestres para não reprovar"
+        value=f"{corda_bamba_count} ({alunos_unicos_corda_bamba} alunos)",
+        help="Alunos-disciplinas que precisam de média ≥ 7 nos próximos 2 bimestres para não reprovar. O número entre parênteses mostra quantos alunos únicos estão em corda bamba."
     )
 
 # Resumo Executivo - Dashboard Principal
@@ -554,7 +558,7 @@ with col_res1:
         <p style="color: #991b1b; margin: 0; font-size: 0.9em;">Situações que precisam de atenção imediata</p>
     </div>
     """, unsafe_allow_html=True)
-    st.metric("Alunos em Alerta", alerta_count, help="Total de alunos-disciplinas em situação de risco")
+    st.metric("Alunos em Alerta", f"{alerta_count} ({alunos_unicos_alerta} alunos)", help="Total de alunos-disciplinas em situação de risco. O número entre parênteses mostra quantos alunos únicos estão em alerta.")
 
 with col_res2:
     st.markdown("""
@@ -563,7 +567,7 @@ with col_res2:
         <p style="color: #92400e; margin: 0; font-size: 0.9em;">Precisam de média ≥ 7 nos próximos bimestres</p>
     </div>
     """, unsafe_allow_html=True)
-    st.metric("Alunos em Corda Bamba", corda_bamba_count, help="Alunos que precisam de média ≥ 7 nos próximos 2 bimestres")
+    st.metric("Alunos em Corda Bamba", f"{corda_bamba_count} ({alunos_unicos_corda_bamba} alunos)", help="Alunos-disciplinas que precisam de média ≥ 7 nos próximos 2 bimestres. O número entre parênteses mostra quantos alunos únicos estão em corda bamba.")
 
 with col_res3:
     # Calcular total de alunos com notas baixas
@@ -990,3 +994,4 @@ st.markdown(
     """, 
     unsafe_allow_html=True
 )
+
