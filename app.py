@@ -158,11 +158,11 @@ def calcula_indicadores(df):
 # UI – Entrada de dados
 # -----------------------------
 st.markdown("""
-<div style="text-align: center; padding: 40px 20px; background: #ffffff; border: 2px solid #1e3a8a; border-radius: 8px; margin-bottom: 30px;">
-    <h1 style="color: #1e3a8a; margin: 0; font-size: 2.2em; font-weight: 700;">Superintendência Regional de Educação de Gurupi TO</h1>
-    <h2 style="color: #1e40af; margin: 15px 0 0 0; font-weight: 600; font-size: 1.8em;">Painel SGE</h2>
-    <h3 style="color: #1e40af; margin: 10px 0 0 0; font-weight: 400; font-size: 1.4em;">Notas, Frequência, Riscos e Alertas</h3>
-    <p style="color: #64748b; margin: 10px 0 0 0; font-size: 1.1em;">Análise dos 1º e 2º Bimestres</p>
+<div style="text-align: center; padding: 40px 20px; background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 15px; margin-bottom: 30px; box-shadow: 0 8px 25px rgba(30, 64, 175, 0.3);">
+    <h1 style="color: white; margin: 0; font-size: 2.2em; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Superintendência Regional de Educação de Gurupi TO</h1>
+    <h2 style="color: white; margin: 15px 0 0 0; font-weight: 600; font-size: 1.8em; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Painel SGE</h2>
+    <h3 style="color: rgba(255,255,255,0.95); margin: 10px 0 0 0; font-weight: 500; font-size: 1.4em;">Notas, Frequência, Riscos e Alertas</h3>
+    <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0; font-size: 1.1em; font-weight: 400;">Análise dos 1º e 2º Bimestres</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -202,8 +202,8 @@ except FileNotFoundError:
 
 # Conferência mínima - Dados Gerais
 st.markdown("""
-<div style="background: #f8fafc; border: 2px solid #1e3a8a; padding: 20px; border-radius: 8px; margin: 20px 0;">
-    <h3 style="color: #1e3a8a; text-align: center; margin: 0 0 20px 0; font-size: 1.4em; font-weight: 600;">📊 Visão Geral dos Dados</h3>
+<div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
+    <h3 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Visão Geral dos Dados</h3>
 </div>
 """, unsafe_allow_html=True)
 
@@ -242,8 +242,8 @@ with colE:
 
 # Adicionar métrica de total de estudantes únicos
 st.markdown("""
-<div style="background: #f0f9ff; border: 2px solid #0ea5e9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-    <h3 style="color: #0c4a6e; text-align: center; margin: 0 0 20px 0; font-size: 1.4em; font-weight: 600;">👥 Total de Estudantes</h3>
+<div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
+    <h3 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">👥 Total de Estudantes</h3>
 </div>
 """, unsafe_allow_html=True)
 
@@ -261,19 +261,27 @@ with col_total:
 # Filtros laterais
 # -----------------------------
 st.sidebar.markdown("""
-<div style="background: #f8fafc; border: 1px solid #1e3a8a; padding: 20px; border-radius: 6px; margin-bottom: 20px;">
-    <h2 style="color: #1e3a8a; text-align: center; margin: 0; font-size: 1.4em; font-weight: 600;">Filtros</h2>
-    <p style="color: #64748b; text-align: center; margin: 8px 0 0 0; font-size: 0.9em;">Filtre os dados para análise específica</p>
+<div style="background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(5, 150, 105, 0.2);">
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Filtros</h2>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1em; font-weight: 500;">Filtre os dados para análise específica</p>
 </div>
 """, unsafe_allow_html=True)
 
 escolas = sorted(df["Escola"].dropna().unique().tolist()) if "Escola" in df.columns else []
 status_opcoes = sorted(df["Status"].dropna().unique().tolist()) if "Status" in df.columns else []
 
-st.sidebar.markdown("### Escola")
+st.sidebar.markdown("""
+<div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius: 6px; padding: 8px 12px; margin: 6px 0; box-shadow: 0 1px 4px rgba(5, 150, 105, 0.1); border-left: 3px solid #059669;">
+    <h3 style="color: #047857; margin: 0; font-size: 1em; font-weight: 600;">Escola</h3>
+</div>
+""", unsafe_allow_html=True)
 escola_sel = st.sidebar.selectbox("Selecione a escola:", ["Todas"] + escolas, help="Filtre por escola específica")
 
-st.sidebar.markdown("### Status")
+st.sidebar.markdown("""
+<div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius: 6px; padding: 8px 12px; margin: 6px 0; box-shadow: 0 1px 4px rgba(5, 150, 105, 0.1); border-left: 3px solid #059669;">
+    <h3 style="color: #047857; margin: 0; font-size: 1em; font-weight: 600;">Status</h3>
+</div>
+""", unsafe_allow_html=True)
 status_sel = st.sidebar.selectbox("Selecione o status:", ["Todos"] + status_opcoes, help="Filtre por status do aluno")
 
 # Filtrar dados baseado na escola e status selecionados para mostrar opções relevantes
@@ -288,7 +296,11 @@ disciplinas = sorted(df_temp["Disciplina"].dropna().unique().tolist()) if "Disci
 alunos = sorted(df_temp["Aluno"].dropna().unique().tolist()) if "Aluno" in df_temp.columns else []
 
 # Filtros com interface melhorada
-st.sidebar.markdown("### Turmas")
+st.sidebar.markdown("""
+<div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius: 6px; padding: 8px 12px; margin: 6px 0; box-shadow: 0 1px 4px rgba(5, 150, 105, 0.1); border-left: 3px solid #059669;">
+    <h3 style="color: #047857; margin: 0; font-size: 1em; font-weight: 600;">Turmas</h3>
+</div>
+""", unsafe_allow_html=True)
 # Botões de ação rápida para turmas
 col_t1, col_t2 = st.sidebar.columns(2)
 with col_t1:
@@ -309,7 +321,11 @@ turma_sel = st.sidebar.multiselect(
     help="Use os botões acima para seleção rápida"
 )
 
-st.sidebar.markdown("### Disciplinas")
+st.sidebar.markdown("""
+<div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius: 6px; padding: 8px 12px; margin: 6px 0; box-shadow: 0 1px 4px rgba(5, 150, 105, 0.1); border-left: 3px solid #059669;">
+    <h3 style="color: #047857; margin: 0; font-size: 1em; font-weight: 600;">Disciplinas</h3>
+</div>
+""", unsafe_allow_html=True)
 # Botões de ação rápida para disciplinas
 col_d1, col_d2 = st.sidebar.columns(2)
 with col_d1:
@@ -330,7 +346,11 @@ disc_sel = st.sidebar.multiselect(
     help="Use os botões acima para seleção rápida"
 )
 
-st.sidebar.markdown("### Aluno")
+st.sidebar.markdown("""
+<div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius: 6px; padding: 8px 12px; margin: 6px 0; box-shadow: 0 1px 4px rgba(5, 150, 105, 0.1); border-left: 3px solid #059669;">
+    <h3 style="color: #047857; margin: 0; font-size: 1em; font-weight: 600;">👤 Aluno</h3>
+</div>
+""", unsafe_allow_html=True)
 aluno_sel = st.sidebar.selectbox("Selecione o aluno:", ["Todos"] + alunos, help="Filtre por aluno específico")
 
 df_filt = df.copy()
@@ -352,8 +372,8 @@ if aluno_sel != "Todos":
 
 # Total de Estudantes Únicos (após filtros)
 st.markdown("""
-<div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 20px; border-radius: 8px; margin: 20px 0;">
-    <h3 style="color: #92400e; text-align: center; margin: 0 0 20px 0; font-size: 1.4em; font-weight: 600;">🔍 Total de Estudantes (Filtrado)</h3>
+<div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
+    <h3 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Total de Estudantes (Filtrado)</h3>
 </div>
 """, unsafe_allow_html=True)
 
@@ -369,8 +389,8 @@ with col_total_filt:
 # Métricas de Frequência na Visão Geral (após filtros)
 if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
     st.markdown("""
-    <div style="background: #f0fdf4; border: 2px solid #22c55e; padding: 20px; border-radius: 8px; margin: 20px 0;">
-        <h3 style="color: #15803d; text-align: center; margin: 0 0 20px 0; font-size: 1.4em; font-weight: 600;">📈 Resumo de Frequência</h3>
+    <div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
+        <h3 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Resumo de Frequência</h3>
     </div>
     """, unsafe_allow_html=True)
     
@@ -407,43 +427,53 @@ if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
     with colF1:
         valor_reprovado = contagem_freq_geral.get("Reprovado", 0)
         percent_reprovado = (valor_reprovado / total_alunos_freq * 100) if total_alunos_freq > 0 else 0
-        st.metric(
-            label="< 75% (Reprovado)", 
-            value=f"{valor_reprovado} ({percent_reprovado:.1f}%)",
-            help="Alunos reprovados por frequência"
-        )
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border-radius: 10px; padding: 15px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
+            <div style="font-size: 0.9em; font-weight: 600; color: #1e40af; margin-bottom: 8px;">< 75% (Reprovado)</div>
+            <div style="font-size: 1.8em; font-weight: 700; color: #1e40af; margin: 8px 0;">{valor_reprovado}</div>
+            <div style="font-size: 1.3em; color: #64748b; font-weight: 600;">({percent_reprovado:.1f}%)</div>
+        </div>
+        """, unsafe_allow_html=True)
     with colF2:
         valor_alto_risco = contagem_freq_geral.get("Alto Risco", 0)
         percent_alto_risco = (valor_alto_risco / total_alunos_freq * 100) if total_alunos_freq > 0 else 0
-        st.metric(
-            label="< 80% (Alto Risco)", 
-            value=f"{valor_alto_risco} ({percent_alto_risco:.1f}%)",
-            help="Alunos em alto risco de reprovação"
-        )
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #e0f2fe, #b3e5fc); border-radius: 10px; padding: 15px; margin: 5px 0; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15); border-left: 4px solid #0ea5e9;">
+            <div style="font-size: 0.9em; font-weight: 600; color: #0c4a6e; margin-bottom: 8px;">< 80% (Alto Risco)</div>
+            <div style="font-size: 1.8em; font-weight: 700; color: #0c4a6e; margin: 8px 0;">{valor_alto_risco}</div>
+            <div style="font-size: 1.3em; color: #64748b; font-weight: 600;">({percent_alto_risco:.1f}%)</div>
+        </div>
+        """, unsafe_allow_html=True)
     with colF3:
         valor_risco_moderado = contagem_freq_geral.get("Risco Moderado", 0)
         percent_risco_moderado = (valor_risco_moderado / total_alunos_freq * 100) if total_alunos_freq > 0 else 0
-        st.metric(
-            label="< 90% (Risco Moderado)", 
-            value=f"{valor_risco_moderado} ({percent_risco_moderado:.1f}%)",
-            help="Alunos com risco moderado"
-        )
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #f0f9ff, #dbeafe); border-radius: 10px; padding: 15px; margin: 5px 0; box-shadow: 0 2px 8px rgba(30, 64, 175, 0.15); border-left: 4px solid #1e40af;">
+            <div style="font-size: 0.9em; font-weight: 600; color: #1e40af; margin-bottom: 8px;">< 90% (Risco Moderado)</div>
+            <div style="font-size: 1.8em; font-weight: 700; color: #1e40af; margin: 8px 0;">{valor_risco_moderado}</div>
+            <div style="font-size: 1.3em; color: #64748b; font-weight: 600;">({percent_risco_moderado:.1f}%)</div>
+        </div>
+        """, unsafe_allow_html=True)
     with colF4:
         valor_ponto_atencao = contagem_freq_geral.get("Ponto de Atenção", 0)
         percent_ponto_atencao = (valor_ponto_atencao / total_alunos_freq * 100) if total_alunos_freq > 0 else 0
-        st.metric(
-            label="< 95% (Ponto Atenção)", 
-            value=f"{valor_ponto_atencao} ({percent_ponto_atencao:.1f}%)",
-            help="Alunos que precisam de atenção"
-        )
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border-radius: 10px; padding: 15px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
+            <div style="font-size: 0.9em; font-weight: 600; color: #1e40af; margin-bottom: 8px;">< 95% (Ponto Atenção)</div>
+            <div style="font-size: 1.8em; font-weight: 700; color: #1e40af; margin: 8px 0;">{valor_ponto_atencao}</div>
+            <div style="font-size: 1.3em; color: #64748b; font-weight: 600;">({percent_ponto_atencao:.1f}%)</div>
+        </div>
+        """, unsafe_allow_html=True)
     with colF5:
         valor_meta_favoravel = contagem_freq_geral.get("Meta Favorável", 0)
         percent_meta_favoravel = (valor_meta_favoravel / total_alunos_freq * 100) if total_alunos_freq > 0 else 0
-        st.metric(
-            label="≥ 95% (Meta Favorável)", 
-            value=f"{valor_meta_favoravel} ({percent_meta_favoravel:.1f}%)",
-            help="Alunos com frequência dentro da meta"
-        )
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border-radius: 10px; padding: 15px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
+            <div style="font-size: 0.9em; font-weight: 600; color: #1e40af; margin-bottom: 8px;">≥ 95% (Meta Favorável)</div>
+            <div style="font-size: 1.8em; font-weight: 700; color: #1e40af; margin: 8px 0;">{valor_meta_favoravel}</div>
+            <div style="font-size: 1.3em; color: #64748b; font-weight: 600;">({percent_meta_favoravel:.1f}%)</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # -----------------------------
 # Indicadores e tabelas de risco
@@ -452,8 +482,8 @@ indic = calcula_indicadores(df_filt)
 
 # KPIs - Análise de Notas Baixas
 st.markdown("""
-<div style="background: #fef2f2; border: 2px solid #dc2626; padding: 20px; border-radius: 8px; margin: 20px 0;">
-    <h3 style="color: #991b1b; text-align: center; margin: 0 0 20px 0; font-size: 1.4em; font-weight: 600;">📚 Análise de Notas Abaixo da Média</h3>
+<div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
+    <h3 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Análise de Notas Abaixo da Média</h3>
 </div>
 """, unsafe_allow_html=True)
 
@@ -471,38 +501,73 @@ total_estudantes_para_percent = total_estudantes_filt
 
 with col1:
     percent_notas_b1 = (len(notas_baixas_b1) / len(df_filt) * 100) if len(df_filt) > 0 else 0
-    st.metric(
-        label="Notas < 6 – 1º Bim", 
-        value=f"{len(notas_baixas_b1)} ({percent_notas_b1:.1f}%)",
-        help="Total de registros com notas abaixo de 6 no 1º bimestre"
-    )
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 0.95em; font-weight: 600; color: #1e40af;">Notas < 6 – 1º Bim</div>
+            <div style="background: rgba(30, 64, 175, 0.1); border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #1e40af;">?</div>
+        </div>
+        <div style="font-size: 2em; font-weight: 700; color: #1e40af; margin: 8px 0;">{len(notas_baixas_b1)}</div>
+        <div style="font-size: 1.3em; color: #64748b; font-weight: 600;">({percent_notas_b1:.1f}%)</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Adicionar tooltip
+    st.metric("", "", help="Total de notas abaixo de 6 no 1º bimestre. Inclui todas as disciplinas e alunos.")
+
 with col2:
     percent_notas_b2 = (len(notas_baixas_b2) / len(df_filt) * 100) if len(df_filt) > 0 else 0
-    st.metric(
-        label="Notas < 6 – 2º Bim", 
-        value=f"{len(notas_baixas_b2)} ({percent_notas_b2:.1f}%)",
-        help="Total de registros com notas abaixo de 6 no 2º bimestre"
-    )
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #e0f2fe, #b3e5fc); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15); border-left: 4px solid #0ea5e9;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 0.95em; font-weight: 600; color: #0c4a6e;">Notas < 6 – 2º Bim</div>
+            <div style="background: rgba(12, 74, 110, 0.1); border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #0c4a6e;">?</div>
+        </div>
+        <div style="font-size: 2em; font-weight: 700; color: #0c4a6e; margin: 8px 0;">{len(notas_baixas_b2)}</div>
+        <div style="font-size: 1.3em; color: #64748b; font-weight: 600;">({percent_notas_b2:.1f}%)</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Adicionar tooltip
+    st.metric("", "", help="Total de notas abaixo de 6 no 2º bimestre. Inclui todas as disciplinas e alunos.")
+
 with col3:
     percent_alunos_b1 = (alunos_notas_baixas_b1 / total_estudantes_para_percent * 100) if total_estudantes_para_percent > 0 else 0
-    st.metric(
-        label="Alunos < 6 – 1º Bim", 
-        value=f"{alunos_notas_baixas_b1} ({percent_alunos_b1:.1f}%)",
-        help="Número de alunos únicos com notas abaixo de 6 no 1º bimestre"
-    )
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #f0f9ff, #dbeafe); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(30, 64, 175, 0.15); border-left: 4px solid #1e40af;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 0.95em; font-weight: 600; color: #1e40af;">Alunos < 6 – 1º Bim</div>
+            <div style="background: rgba(30, 64, 175, 0.1); border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #1e40af;">?</div>
+        </div>
+        <div style="font-size: 2em; font-weight: 700; color: #1e40af; margin: 8px 0;">{alunos_notas_baixas_b1}</div>
+        <div style="font-size: 1.3em; color: #64748b; font-weight: 600;">({percent_alunos_b1:.1f}%)</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Adicionar tooltip
+    st.metric("", "", help="Número de alunos únicos que tiveram pelo menos uma nota abaixo de 6 no 1º bimestre.")
+
 with col4:
     percent_alunos_b2 = (alunos_notas_baixas_b2 / total_estudantes_para_percent * 100) if total_estudantes_para_percent > 0 else 0
-    st.metric(
-        label="Alunos < 6 – 2º Bim", 
-        value=f"{alunos_notas_baixas_b2} ({percent_alunos_b2:.1f}%)",
-        help="Número de alunos únicos com notas abaixo de 6 no 2º bimestre"
-    )
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 0.95em; font-weight: 600; color: #1e40af;">Alunos < 6 – 2º Bim</div>
+            <div style="background: rgba(30, 64, 175, 0.1); border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #1e40af;">?</div>
+        </div>
+        <div style="font-size: 2em; font-weight: 700; color: #1e40af; margin: 8px 0;">{alunos_notas_baixas_b2}</div>
+        <div style="font-size: 1.3em; color: #64748b; font-weight: 600;">({percent_alunos_b2:.1f}%)</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Adicionar tooltip
+    st.metric("", "", help="Número de alunos únicos que tiveram pelo menos uma nota abaixo de 6 no 2º bimestre.")
 
 # KPIs - Alertas Críticos (com destaque visual)
 st.markdown("""
-<div style="background: #fef2f2; border: 1px solid #dc2626; padding: 20px; border-radius: 8px; margin: 20px 0;">
-    <h2 style="color: #dc2626; text-align: center; margin: 0; font-size: 1.6em; font-weight: 600;">Alertas Críticos</h2>
-    <p style="color: #ef4444; text-align: center; margin: 8px 0 0 0; font-size: 1em;">Situações que precisam de atenção imediata</p>
+<div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Alertas Críticos</h2>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Situações que precisam de atenção imediata</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -518,33 +583,37 @@ alunos_unicos_corda_bamba = indic[indic["CordaBamba"]]["Aluno"].nunique()
 
 with col5:
     st.markdown("""
-    <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; border-radius: 4px; margin: 10px 0;">
-        <h3 style="color: #dc2626; margin: 0 0 10px 0; font-size: 1.1em;">Alunos-Disciplinas em ALERTA</h3>
+    <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
+        <h3 style="color: #1e40af; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Alunos-Disciplinas em ALERTA</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 2.5em; font-weight: 700; color: #1e40af;">{}</div>
+            <div style="font-size: 2.5em; font-weight: 700; color: #64748b;">{} alunos</div>
+        </div>
     </div>
-    """, unsafe_allow_html=True)
-    st.metric(
-        label="", 
-        value=f"{alerta_count} ({alunos_unicos_alerta} alunos)",
-        help="Alunos-disciplinas em situação de risco (Vermelho Duplo, Queda p/ Vermelho ou Corda Bamba). O número entre parênteses mostra quantos alunos únicos estão em alerta."
-    )
+    """.format(alerta_count, alunos_unicos_alerta), unsafe_allow_html=True)
+    
+    # Adicionar tooltip funcional
+    st.metric("", "", help="Alunos-disciplinas em situação de risco (Vermelho Duplo, Queda p/ Vermelho ou Corda Bamba). O número entre parênteses mostra quantos alunos únicos estão em alerta.")
 
 with col6:
     st.markdown("""
-    <div style="background: #fffbeb; border-left: 4px solid #d97706; padding: 15px; border-radius: 4px; margin: 10px 0;">
-        <h3 style="color: #d97706; margin: 0 0 10px 0; font-size: 1.1em;">Corda Bamba</h3>
+    <div style="background: linear-gradient(135deg, #e0f2fe, #b3e5fc); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15); border-left: 4px solid #0ea5e9;">
+        <h3 style="color: #0c4a6e; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Corda Bamba</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 2.5em; font-weight: 700; color: #0c4a6e;">{}</div>
+            <div style="font-size: 2.5em; font-weight: 700; color: #64748b;">{} alunos</div>
+        </div>
     </div>
-    """, unsafe_allow_html=True)
-    st.metric(
-        label="", 
-        value=f"{corda_bamba_count} ({alunos_unicos_corda_bamba} alunos)",
-        help="Alunos-disciplinas que precisam de média ≥ 7 nos próximos 2 bimestres para não reprovar. O número entre parênteses mostra quantos alunos únicos estão em corda bamba."
-    )
+    """.format(corda_bamba_count, alunos_unicos_corda_bamba), unsafe_allow_html=True)
+    
+    # Adicionar tooltip funcional
+    st.metric("", "", help="Corda Bamba são alunos que precisam tirar 7 ou mais nos próximos bimestres para recuperar e sair do limite da média mínima. O número maior mostra em quantas disciplinas eles aparecem; o número entre parênteses mostra quantos alunos diferentes estão nessa condição.")
 
 # Resumo Executivo - Dashboard Principal
 st.markdown("""
-<div style="background: #f0f9ff; border: 1px solid #0ea5e9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-    <h2 style="color: #0c4a6e; text-align: center; margin: 0; font-size: 1.6em; font-weight: 600;">📊 Resumo Executivo</h2>
-    <p style="color: #0369a1; text-align: center; margin: 8px 0 0 0; font-size: 1em;">Visão consolidada dos principais indicadores</p>
+<div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Resumo Executivo</h2>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Visão consolidada dos principais indicadores</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -552,33 +621,45 @@ st.markdown("""
 col_res1, col_res2, col_res3, col_res4 = st.columns(4)
 
 with col_res1:
-    st.markdown("""
-    <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; border-radius: 4px; margin: 10px 0;">
-        <h3 style="color: #dc2626; margin: 0 0 5px 0; font-size: 1em;">🚨 Alertas Críticos</h3>
-        <p style="color: #991b1b; margin: 0; font-size: 0.9em;">Situações que precisam de atenção imediata</p>
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border-radius: 8px; padding: 15px; margin: 10px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
+        <h3 style="color: #1e40af; margin: 0 0 5px 0; font-size: 1em; font-weight: 600;">Alertas Críticos</h3>
+        <p style="color: #64748b; margin: 0 0 8px 0; font-size: 0.85em;">Situações que precisam de atenção imediata</p>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 1.5em; font-weight: 700; color: #1e40af;">{alerta_count}</div>
+            <div style="font-size: 1.5em; font-weight: 700; color: #64748b;">{alunos_unicos_alerta} alunos</div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
-    st.metric("Alunos em Alerta", f"{alerta_count} ({alunos_unicos_alerta} alunos)", help="Total de alunos-disciplinas em situação de risco. O número entre parênteses mostra quantos alunos únicos estão em alerta.")
 
 with col_res2:
-    st.markdown("""
-    <div style="background: #fffbeb; border-left: 4px solid #d97706; padding: 15px; border-radius: 4px; margin: 10px 0;">
-        <h3 style="color: #d97706; margin: 0 0 5px 0; font-size: 1em;">⚖️ Corda Bamba</h3>
-        <p style="color: #92400e; margin: 0; font-size: 0.9em;">Precisam de média ≥ 7 nos próximos bimestres</p>
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #e0f2fe, #b3e5fc); border-radius: 8px; padding: 15px; margin: 10px 0; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15); border-left: 4px solid #0ea5e9;">
+        <h3 style="color: #0c4a6e; margin: 0 0 5px 0; font-size: 1em; font-weight: 600;">Corda Bamba</h3>
+        <p style="color: #64748b; margin: 0 0 8px 0; font-size: 0.85em;">Precisam de média ≥ 7 nos próximos bimestres</p>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 1.5em; font-weight: 700; color: #0c4a6e;">{corda_bamba_count}</div>
+            <div style="font-size: 1.5em; font-weight: 700; color: #64748b;">{alunos_unicos_corda_bamba} alunos</div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
-    st.metric("Alunos em Corda Bamba", f"{corda_bamba_count} ({alunos_unicos_corda_bamba} alunos)", help="Alunos-disciplinas que precisam de média ≥ 7 nos próximos 2 bimestres. O número entre parênteses mostra quantos alunos únicos estão em corda bamba.")
 
 with col_res3:
     # Calcular total de alunos com notas baixas
     total_alunos_notas_baixas = max(alunos_notas_baixas_b1, alunos_notas_baixas_b2)
-    st.markdown("""
-    <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px; margin: 10px 0;">
-        <h3 style="color: #d97706; margin: 0 0 5px 0; font-size: 1em;">📉 Notas Baixas</h3>
-        <p style="color: #92400e; margin: 0; font-size: 0.9em;">Alunos com notas abaixo de 6</p>
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #f0f9ff, #dbeafe); border-radius: 8px; padding: 15px; margin: 10px 0; box-shadow: 0 2px 8px rgba(30, 64, 175, 0.15); border-left: 4px solid #1e40af;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h3 style="color: #1e40af; margin: 0; font-size: 1em; font-weight: 600;">Notas Baixas</h3>
+            <div style="background: rgba(30, 64, 175, 0.1); border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #1e40af;">?</div>
+        </div>
+        <p style="color: #64748b; margin: 0 0 8px 0; font-size: 0.85em;">Alunos com notas abaixo de 6</p>
+        <div style="font-size: 1.5em; font-weight: 700; color: #1e40af;">{total_alunos_notas_baixas}</div>
     </div>
     """, unsafe_allow_html=True)
-    st.metric("Alunos com Notas < 6", total_alunos_notas_baixas, help="Máximo entre 1º e 2º bimestres")
+    
+    # Adicionar tooltip usando st.metric
+    st.metric("", "", help="Alunos únicos que tiveram pelo menos uma nota abaixo de 6 em qualquer bimestre. Considera o maior número entre 1º e 2º bimestres.")
 
 with col_res4:
     # Calcular alunos com frequência baixa se disponível
@@ -588,21 +669,27 @@ with col_res4:
         else:
             freq_baixa_count = len(df_filt[df_filt["Frequencia"] < 95]["Aluno"].unique())
         
-        st.markdown("""
-        <div style="background: #f3e8ff; border-left: 4px solid #8b5cf6; padding: 15px; border-radius: 4px; margin: 10px 0;">
-            <h3 style="color: #7c3aed; margin: 0 0 5px 0; font-size: 1em;">📊 Frequência Baixa</h3>
-            <p style="color: #6b21a8; margin: 0; font-size: 0.9em;">Alunos com frequência < 95%</p>
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="color: #1e40af; margin: 0; font-size: 1.1em; font-weight: 600;">Frequência Baixa</h3>
+                <div style="background: rgba(30, 64, 175, 0.1); border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #1e40af;">?</div>
+            </div>
+            <p style="color: #64748b; margin: 0 0 8px 0; font-size: 0.85em;">Alunos com frequência < 95%</p>
+            <div style="font-size: 2em; font-weight: 700; color: #1e40af;">{freq_baixa_count}</div>
         </div>
         """, unsafe_allow_html=True)
-        st.metric("Alunos com Freq < 95%", freq_baixa_count, help="Alunos com frequência abaixo da meta")
+        
+        # Adicionar tooltip usando st.metric
+        st.metric("", "", help="Alunos únicos com frequência menor que 95%. Meta favorável é ≥ 95% de frequência.")
     else:
         st.markdown("""
-        <div style="background: #f3f4f6; border-left: 4px solid #6b7280; padding: 15px; border-radius: 4px; margin: 10px 0;">
-            <h3 style="color: #374151; margin: 0 0 5px 0; font-size: 1em;">📊 Frequência</h3>
-            <p style="color: #4b5563; margin: 0; font-size: 0.9em;">Dados não disponíveis</p>
+        <div style="background: linear-gradient(135deg, #f8fafc, #e2e8f0); border-radius: 8px; padding: 15px; margin: 10px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.1); border-left: 4px solid #64748b;">
+            <h3 style="color: #374151; margin: 0 0 5px 0; font-size: 1em; font-weight: 600;">Frequência</h3>
+            <p style="color: #64748b; margin: 0 0 8px 0; font-size: 0.85em;">Dados não disponíveis</p>
+            <div style="font-size: 1.5em; font-weight: 700; color: #64748b;">N/A</div>
         </div>
         """, unsafe_allow_html=True)
-        st.metric("Dados de Frequência", "N/A", help="Dados de frequência não disponíveis")
 
 # KPIs - Análise de Frequência
 if "Frequencia Anual" in df_filt.columns:
@@ -740,18 +827,18 @@ with st.expander(expander_title):
         col_leg1, col_leg2, col_leg3 = st.columns(3)
         with col_leg1:
             st.markdown("""
-            **📉 < 75%**: Reprovado por frequência  
-            **🔴 < 80%**: Alto risco de reprovação
+            **< 75%**: Reprovado por frequência  
+            **< 80%**: Alto risco de reprovação
             """)
         with col_leg2:
             st.markdown("""
-            **🟡 < 90%**: Risco moderado  
-            **🟠 < 95%**: Ponto de atenção
+            **< 90%**: Risco moderado  
+            **< 95%**: Ponto de atenção
             """)
         with col_leg3:
             st.markdown("""
-            **🟢 ≥ 95%**: Meta favorável  
-            **⚪ Sem dados**: Frequência não informada
+            **≥ 95%**: Meta favorável  
+            **Sem dados**: Frequência não informada
             """)
     else:
         st.info("Dados de frequência não disponíveis na planilha.")
@@ -803,7 +890,7 @@ col_graf1, col_graf2 = st.columns(2)
 
 # Gráfico: Notas abaixo de 6 por Disciplina (1º e 2º bimestres)
 with col_graf1:
-    with st.expander("📊 Notas Abaixo da Média por Disciplina"):
+    with st.expander("Notas Abaixo da Média por Disciplina"):
         base_baixas = pd.concat([notas_baixas_b1, notas_baixas_b2], ignore_index=True)
         if len(base_baixas) > 0:
             # Contar notas por disciplina
@@ -840,7 +927,7 @@ with col_graf1:
 
 # Gráfico: Distribuição de Frequência por Faixas
 with col_graf2:
-    with st.expander("📈 Distribuição de Frequência por Faixas"):
+    with st.expander("Distribuição de Frequência por Faixas"):
         if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
             # Usar os mesmos dados do Resumo de Frequência
             if "Frequencia Anual" in df_filt.columns:
@@ -883,18 +970,18 @@ with col_graf2:
                 st.plotly_chart(fig_freq, use_container_width=True)
                 
                 # Estatísticas adicionais
-                st.markdown("**📊 Resumo das Faixas de Frequência:**")
+                st.markdown("**Resumo das Faixas de Frequência:**")
                 col_stat1, col_stat2, col_stat3 = st.columns(3)
                 with col_stat1:
                     total_alunos = contagem_freq_geral.sum()
-                    st.metric("Total de Alunos", total_alunos)
+                    st.metric("Total de Alunos", total_alunos, help="Total de alunos considerados na análise de frequência")
                 with col_stat2:
                     alunos_risco = contagem_freq_geral.get("Reprovado", 0) + contagem_freq_geral.get("Alto Risco", 0)
-                    st.metric("Alunos em Risco", alunos_risco)
+                    st.metric("Alunos em Risco", alunos_risco, help="Alunos reprovados ou em alto risco de reprovação por frequência")
                 with col_stat3:
                     alunos_meta = contagem_freq_geral.get("Meta Favorável", 0)
                     percentual_meta = (alunos_meta / total_alunos * 100) if total_alunos > 0 else 0
-                    st.metric("Meta Favorável", f"{percentual_meta:.1f}%")
+                    st.metric("Meta Favorável", f"{percentual_meta:.1f}%", help="Percentual de alunos com frequência ≥ 95% (meta favorável)")
             else:
                 st.info("Sem dados de frequência para exibir.")
         else:
@@ -994,4 +1081,5 @@ st.markdown(
     """, 
     unsafe_allow_html=True
 )
+
 
