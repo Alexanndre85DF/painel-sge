@@ -457,10 +457,10 @@ if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
     
     # Calcular frequências para visão geral (usando dados filtrados)
     if "Frequencia Anual" in df_filt.columns:
-        freq_geral = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
+        freq_geral = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
         freq_geral = freq_geral.rename(columns={"Frequencia Anual": "Frequencia"})
     else:
-        freq_geral = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
+        freq_geral = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
     
     freq_geral["Classificacao_Freq"] = freq_geral["Frequencia"].apply(classificar_frequencia_geral)
     contagem_freq_geral = freq_geral["Classificacao_Freq"].value_counts()
@@ -773,12 +773,12 @@ def classificar_frequencia(freq):
 # Calcular frequências se a coluna existir
 if "Frequencia Anual" in df_filt.columns:
     # Usar frequência anual se disponível
-    freq_atual = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
+    freq_atual = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
     freq_atual = freq_atual.rename(columns={"Frequencia Anual": "Frequencia"})
     freq_atual["Classificacao_Freq"] = freq_atual["Frequencia"].apply(classificar_frequencia)
 elif "Frequencia" in df_filt.columns:
     # Usar frequência do período se anual não estiver disponível
-    freq_atual = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
+    freq_atual = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
     freq_atual["Classificacao_Freq"] = freq_atual["Frequencia"].apply(classificar_frequencia)
     
     # Contar por classificação
@@ -831,14 +831,14 @@ else:
 
 with st.expander(expander_title):
     if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
-        # Tabela de frequência por aluno
+        # Tabela de frequência por aluno (incluindo turma)
         if "Frequencia Anual" in df_filt.columns:
-            freq_detalhada = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
+            freq_detalhada = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
             freq_detalhada = freq_detalhada.rename(columns={"Frequencia Anual": "Frequencia"})
         else:
-            freq_detalhada = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
+            freq_detalhada = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
         freq_detalhada["Classificacao_Freq"] = freq_detalhada["Frequencia"].apply(classificar_frequencia)
-        freq_detalhada = freq_detalhada.sort_values(["Aluno"])
+        freq_detalhada = freq_detalhada.sort_values(["Turma", "Aluno"])
         
         # Função para colorir frequência
         def color_frequencia(val):
@@ -861,7 +861,7 @@ with st.expander(expander_title):
         )
         
         # Aplicar cores
-        styled_freq = freq_detalhada[["Aluno", "Frequencia_Formatada", "Classificacao_Freq"]]\
+        styled_freq = freq_detalhada[["Aluno", "Turma", "Frequencia_Formatada", "Classificacao_Freq"]]\
             .style.applymap(color_frequencia, subset=["Classificacao_Freq"])
         
         st.dataframe(styled_freq, use_container_width=True)
@@ -870,7 +870,7 @@ with st.expander(expander_title):
         col_export5, col_export6 = st.columns([1, 4])
         with col_export5:
             if st.button("📊 Exportar Frequência", key="export_frequencia", help="Baixar planilha com análise de frequência"):
-                excel_data = criar_excel_formatado(freq_detalhada[["Aluno", "Frequencia_Formatada", "Classificacao_Freq"]], "Analise_Frequencia")
+                excel_data = criar_excel_formatado(freq_detalhada[["Aluno", "Turma", "Frequencia_Formatada", "Classificacao_Freq"]], "Analise_Frequencia")
                 st.download_button(
                     label="Baixar Excel",
                     data=excel_data,
@@ -1083,10 +1083,10 @@ with col_graf2:
         if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
             # Usar os mesmos dados do Resumo de Frequência
             if "Frequencia Anual" in df_filt.columns:
-                freq_geral = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
+                freq_geral = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
                 freq_geral = freq_geral.rename(columns={"Frequencia Anual": "Frequencia"})
             else:
-                freq_geral = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
+                freq_geral = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
             
             freq_geral["Classificacao_Freq"] = freq_geral["Frequencia"].apply(classificar_frequencia_geral)
             contagem_freq_geral = freq_geral["Classificacao_Freq"].value_counts()
@@ -1168,14 +1168,14 @@ with st.expander("Análise Cruzada: Notas x Frequência"):
     if ("Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns) and len(indic) > 0:
         # Combinar dados de notas e frequência (priorizando Frequencia Anual)
         if "Frequencia Anual" in df_filt.columns:
-            freq_alunos = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
+            freq_alunos = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
             freq_alunos = freq_alunos.rename(columns={"Frequencia Anual": "Frequencia"})
         else:
-            freq_alunos = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
+            freq_alunos = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
         freq_alunos["Classificacao_Freq"] = freq_alunos["Frequencia"].apply(classificar_frequencia)
         
         # Merge com indicadores de notas
-        cruzada = indic.merge(freq_alunos, on=["Aluno"], how="left")
+        cruzada = indic.merge(freq_alunos, on=["Aluno", "Turma"], how="left")
         
         # Criar matriz de cruzamento
         matriz_cruzada = cruzada.groupby(["Classificacao", "Classificacao_Freq"]).size().unstack(fill_value=0)
@@ -1190,7 +1190,7 @@ with st.expander("Análise Cruzada: Notas x Frequência"):
             if len(freq_baixa) > 0:
                 st.markdown("### Alunos com Frequência Abaixo de 95% (Cruzamento Notas x Frequência)")
                 # Mostrar apenas colunas relevantes para frequência baixa
-                freq_baixa_display = freq_baixa[["Aluno", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
+                freq_baixa_display = freq_baixa[["Aluno", "Turma", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
                 # Formatar frequência
                 freq_baixa_display["Frequencia"] = freq_baixa_display["Frequencia"].apply(
                     lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
@@ -1242,16 +1242,16 @@ with col_export_all1:
             # Aba 3: Análise de Frequência (se disponível)
             if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
                 if "Frequencia Anual" in df_filt.columns:
-                    freq_detalhada = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
+                    freq_detalhada = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
                     freq_detalhada = freq_detalhada.rename(columns={"Frequencia Anual": "Frequencia"})
                 else:
-                    freq_detalhada = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
+                    freq_detalhada = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
                 
                 freq_detalhada["Classificacao_Freq"] = freq_detalhada["Frequencia"].apply(classificar_frequencia)
                 freq_detalhada["Frequencia_Formatada"] = freq_detalhada["Frequencia"].apply(
                     lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
                 )
-                freq_detalhada[["Aluno", "Frequencia_Formatada", "Classificacao_Freq"]].to_excel(
+                freq_detalhada[["Aluno", "Turma", "Frequencia_Formatada", "Classificacao_Freq"]].to_excel(
                     writer, sheet_name="Analise_Frequencia", index=False)
             
             # Aba 4: Notas por Disciplina (se houver dados)
@@ -1265,10 +1265,10 @@ with col_export_all1:
             # Aba 5: Frequência por Faixas (se disponível)
             if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
                 if "Frequencia Anual" in df_filt.columns:
-                    freq_geral = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
+                    freq_geral = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
                     freq_geral = freq_geral.rename(columns={"Frequencia Anual": "Frequencia"})
                 else:
-                    freq_geral = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
+                    freq_geral = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
                 
                 freq_geral["Classificacao_Freq"] = freq_geral["Frequencia"].apply(classificar_frequencia_geral)
                 contagem_freq_geral = freq_geral["Classificacao_Freq"].value_counts()
@@ -1288,21 +1288,56 @@ with col_export_all1:
             # Aba 6: Cruzamento Notas x Frequência (se disponível)
             if ("Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns) and len(indic) > 0:
                 if "Frequencia Anual" in df_filt.columns:
-                    freq_alunos = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
+                    freq_alunos = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
                     freq_alunos = freq_alunos.rename(columns={"Frequencia Anual": "Frequencia"})
                 else:
-                    freq_alunos = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
+                    freq_alunos = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
                 
                 freq_alunos["Classificacao_Freq"] = freq_alunos["Frequencia"].apply(classificar_frequencia)
-                cruzada = indic.merge(freq_alunos, on=["Aluno"], how="left")
+                cruzada = indic.merge(freq_alunos, on=["Aluno", "Turma"], how="left")
                 freq_baixa = cruzada[cruzada["Frequencia"] < 95]
                 
                 if len(freq_baixa) > 0:
-                    freq_baixa_display = freq_baixa[["Aluno", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
+                    freq_baixa_display = freq_baixa[["Aluno", "Turma", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
                     freq_baixa_display["Frequencia"] = freq_baixa_display["Frequencia"].apply(
                         lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
                     )
                     freq_baixa_display.to_excel(writer, sheet_name="Cruzamento_Notas_Freq", index=False)
+            
+            # Aba 7: Alunos Duplicados (se houver)
+            alunos_turmas = df_filt.groupby("Aluno")["Turma"].nunique().reset_index()
+            alunos_turmas = alunos_turmas.rename(columns={"Turma": "Qtd_Turmas"})
+            alunos_duplicados = alunos_turmas[alunos_turmas["Qtd_Turmas"] > 1].copy()
+            
+            if len(alunos_duplicados) > 0:
+                # Criar formato com colunas separadas para cada turma
+                export_data = []
+                for _, row in alunos_duplicados.iterrows():
+                    aluno = row["Aluno"]
+                    qtd_turmas = row["Qtd_Turmas"]
+                    turmas_aluno = df_filt[df_filt["Aluno"] == aluno]["Turma"].unique().tolist()
+                    turmas_aluno = sorted(turmas_aluno)
+                    
+                    # Criar linha com colunas separadas
+                    linha = {
+                        "Aluno": aluno,
+                        "Qtd_Turmas": qtd_turmas
+                    }
+                    
+                    # Adicionar cada turma em uma coluna separada
+                    for i, turma in enumerate(turmas_aluno, 1):
+                        linha[f"Turma_{i}"] = turma
+                    
+                    # Preencher colunas vazias com None para alunos com menos turmas
+                    max_turmas = alunos_duplicados["Qtd_Turmas"].max()
+                    for i in range(len(turmas_aluno) + 1, max_turmas + 1):
+                        linha[f"Turma_{i}"] = None
+                    
+                    export_data.append(linha)
+                
+                df_export = pd.DataFrame(export_data)
+                df_export = df_export.sort_values(["Qtd_Turmas", "Aluno"], ascending=[False, True])
+                df_export.to_excel(writer, sheet_name="Alunos_Duplicados", index=False)
         
         output.seek(0)
         st.download_button(
@@ -1311,6 +1346,167 @@ with col_export_all1:
             file_name="painel_sge_completo.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+# Seção: Identificação de Alunos em Múltiplas Turmas
+st.markdown("---")
+st.markdown("""
+<div style="background: linear-gradient(135deg, #dc2626, #ef4444); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(220, 38, 38, 0.2);">
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">🔍 Identificação de Alunos Duplicados</h2>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Detecção de alunos que aparecem em múltiplas turmas</p>
+</div>
+""", unsafe_allow_html=True)
+
+# Identificar alunos em múltiplas turmas
+alunos_turmas = df_filt.groupby("Aluno")["Turma"].nunique().reset_index()
+alunos_turmas = alunos_turmas.rename(columns={"Turma": "Qtd_Turmas"})
+
+# Filtrar apenas alunos com mais de uma turma
+alunos_duplicados = alunos_turmas[alunos_turmas["Qtd_Turmas"] > 1].copy()
+
+if len(alunos_duplicados) > 0:
+    # Criar dataframe detalhado com todas as turmas de cada aluno duplicado
+    alunos_detalhados = []
+    
+    for _, row in alunos_duplicados.iterrows():
+        aluno = row["Aluno"]
+        qtd_turmas = row["Qtd_Turmas"]
+        
+        # Obter todas as turmas deste aluno
+        turmas_aluno = df_filt[df_filt["Aluno"] == aluno]["Turma"].unique().tolist()
+        turmas_str = ", ".join(sorted(turmas_aluno))
+        
+        alunos_detalhados.append({
+            "Aluno": aluno,
+            "Qtd_Turmas": qtd_turmas,
+            "Turmas": turmas_str
+        })
+    
+    df_alunos_duplicados = pd.DataFrame(alunos_detalhados)
+    df_alunos_duplicados = df_alunos_duplicados.sort_values(["Qtd_Turmas", "Aluno"], ascending=[False, True])
+    
+    # Função para colorir quantidade de turmas
+    def color_qtd_turmas(val):
+        if val == 2:
+            return "background-color: #fef3c7; color: #92400e"  # Amarelo para duplicidade
+        elif val == 3:
+            return "background-color: #fed7aa; color: #9a3412"  # Laranja para triplicidade
+        elif val >= 4:
+            return "background-color: #fecaca; color: #991b1b"  # Vermelho para 4+ turmas
+        else:
+            return ""
+    
+    # Aplicar cores
+    styled_duplicados = df_alunos_duplicados.style.applymap(color_qtd_turmas, subset=["Qtd_Turmas"])
+    
+    st.dataframe(styled_duplicados, use_container_width=True)
+    
+    # Métricas resumidas
+    col_dup1, col_dup2, col_dup3 = st.columns(3)
+    
+    with col_dup1:
+        total_duplicados = len(df_alunos_duplicados)
+        st.metric(
+            label="Total de Alunos Duplicados", 
+            value=total_duplicados,
+            help="Alunos que aparecem em mais de uma turma"
+        )
+    
+    with col_dup2:
+        duplicidade = len(df_alunos_duplicados[df_alunos_duplicados["Qtd_Turmas"] == 2])
+        st.metric(
+            label="Duplicidade (2 turmas)", 
+            value=duplicidade,
+            help="Alunos que aparecem em exatamente 2 turmas"
+        )
+    
+    with col_dup3:
+        triplicidade_mais = len(df_alunos_duplicados[df_alunos_duplicados["Qtd_Turmas"] >= 3])
+        st.metric(
+            label="Triplicidade+ (3+ turmas)", 
+            value=triplicidade_mais,
+            help="Alunos que aparecem em 3 ou mais turmas"
+        )
+    
+    # Botão de exportação
+    col_export_dup1, col_export_dup2 = st.columns([1, 4])
+    with col_export_dup1:
+        if st.button("📊 Exportar Duplicados", key="export_duplicados", help="Baixar planilha com alunos em múltiplas turmas"):
+            # Criar formato com colunas separadas para cada turma
+            export_data = []
+            for _, row in df_alunos_duplicados.iterrows():
+                aluno = row["Aluno"]
+                qtd_turmas = row["Qtd_Turmas"]
+                turmas_aluno = df_filt[df_filt["Aluno"] == aluno]["Turma"].unique().tolist()
+                turmas_aluno = sorted(turmas_aluno)
+                
+                # Criar linha com colunas separadas
+                linha = {
+                    "Aluno": aluno,
+                    "Qtd_Turmas": qtd_turmas
+                }
+                
+                # Adicionar cada turma em uma coluna separada
+                for i, turma in enumerate(turmas_aluno, 1):
+                    linha[f"Turma_{i}"] = turma
+                
+                # Preencher colunas vazias com None para alunos com menos turmas
+                max_turmas = df_alunos_duplicados["Qtd_Turmas"].max()
+                for i in range(len(turmas_aluno) + 1, max_turmas + 1):
+                    linha[f"Turma_{i}"] = None
+                
+                export_data.append(linha)
+            
+            df_export = pd.DataFrame(export_data)
+            excel_data = criar_excel_formatado(df_export, "Alunos_Duplicados")
+            st.download_button(
+                label="Baixar Excel",
+                data=excel_data,
+                file_name="alunos_duplicados.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+    
+    # Legenda
+    st.markdown("### Legenda de Cores")
+    col_leg_dup1, col_leg_dup2, col_leg_dup3 = st.columns(3)
+    with col_leg_dup1:
+        st.markdown("""
+        **2 turmas**: Duplicidade (amarelo)  
+        **3 turmas**: Triplicidade (laranja)
+        """)
+    with col_leg_dup2:
+        st.markdown("""
+        **4+ turmas**: Múltiplas turmas (vermelho)  
+        **Ação**: Verificar dados
+        """)
+    with col_leg_dup3:
+        st.markdown("""
+        **Possíveis causas**:  
+        • Erro de digitação  
+        • Transferência não registrada
+        """)
+    
+    # Aviso importante
+    st.warning("""
+    ⚠️ **Atenção**: Alunos em múltiplas turmas podem indicar:
+    - Erros de digitação nos dados
+    - Transferências não registradas adequadamente
+    - Inconsistências na base de dados
+    
+    Recomenda-se verificar e corrigir essas situações.
+    """)
+    
+else:
+    st.success("✅ **Excelente!** Não foram encontrados alunos em múltiplas turmas. Os dados estão consistentes.")
+    
+    # Mostrar estatística geral
+    col_stats1, col_stats2 = st.columns(2)
+    with col_stats1:
+        total_alunos_unicos = df_filt["Aluno"].nunique()
+        st.metric("Total de Alunos Únicos", total_alunos_unicos, help="Número total de alunos únicos nos dados filtrados")
+    
+    with col_stats2:
+        total_turmas = df_filt["Turma"].nunique()
+        st.metric("Total de Turmas", total_turmas, help="Número total de turmas nos dados filtrados")
 
 # Assinatura discreta do criador
 st.markdown("---")
@@ -1325,6 +1521,3 @@ st.markdown(
     """, 
     unsafe_allow_html=True
 )
-
-
-
