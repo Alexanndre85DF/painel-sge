@@ -2,6 +2,10 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly.express as px
+from io import BytesIO
+import openpyxl
+from openpyxl.styles import PatternFill, Font, Alignment
+from openpyxl.utils.dataframe import dataframe_to_rows
 
 # -----------------------------
 # Configuração inicial
@@ -96,6 +100,46 @@ def classificar_status_b1_b2(n1, n2, media12):
     if n1 < MEDIA_APROVACAO and n2 >= MEDIA_APROVACAO:
         return "Recuperou"
     return "Verde"
+
+def criar_excel_formatado(df, nome_planilha="Dados"):
+    """
+    Cria um arquivo Excel formatado usando pandas (método mais simples e confiável)
+    """
+    # Usar pandas para criar o Excel diretamente
+    output = BytesIO()
+    
+    # Criar o arquivo Excel usando pandas
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name=nome_planilha, index=False)
+        
+        # Acessar a planilha para formatação
+        workbook = writer.book
+        worksheet = writer.sheets[nome_planilha]
+        
+        # Formatar cabeçalho
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(color="FFFFFF", bold=True)
+        
+        for cell in worksheet[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Ajustar largura das colunas
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            worksheet.column_dimensions[column_letter].width = adjusted_width
+    
+    output.seek(0)
+    return output.getvalue()
 
 def calcula_indicadores(df):
     """
@@ -703,9 +747,9 @@ else:
     freq_subtitle = "Dados de frequência não disponíveis"
 
 st.markdown(f"""
-<div style="background: #eff6ff; border: 1px solid #3b82f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-    <h2 style="color: #1e40af; text-align: center; margin: 0; font-size: 1.6em; font-weight: 600;">{freq_title}</h2>
-    <p style="color: #3b82f6; text-align: center; margin: 8px 0 0 0; font-size: 1em;">{freq_subtitle}</p>
+<div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">{freq_title}</h2>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">{freq_subtitle}</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -822,6 +866,18 @@ with st.expander(expander_title):
         
         st.dataframe(styled_freq, use_container_width=True)
         
+        # Botão de exportação para frequência
+        col_export5, col_export6 = st.columns([1, 4])
+        with col_export5:
+            if st.button("📊 Exportar Frequência", key="export_frequencia", help="Baixar planilha com análise de frequência"):
+                excel_data = criar_excel_formatado(freq_detalhada[["Aluno", "Frequencia_Formatada", "Classificacao_Freq"]], "Analise_Frequencia")
+                st.download_button(
+                    label="Baixar Excel",
+                    data=excel_data,
+                    file_name="analise_frequencia.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        
         # Legenda de frequência
         st.markdown("###  Legenda de Frequência")
         col_leg1, col_leg2, col_leg3 = st.columns(3)
@@ -843,49 +899,133 @@ with st.expander(expander_title):
     else:
         st.info("Dados de frequência não disponíveis na planilha.")
 
-# Seção expandível: Análise Cruzada Nota x Frequência
-with st.expander("Análise Cruzada: Notas x Frequência"):
-    if ("Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns) and len(indic) > 0:
-        # Combinar dados de notas e frequência (priorizando Frequencia Anual)
-        if "Frequencia Anual" in df_filt.columns:
-            freq_alunos = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
-            freq_alunos = freq_alunos.rename(columns={"Frequencia Anual": "Frequencia"})
-        else:
-            freq_alunos = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
-        freq_alunos["Classificacao_Freq"] = freq_alunos["Frequencia"].apply(classificar_frequencia)
-        
-        # Merge com indicadores de notas
-        cruzada = indic.merge(freq_alunos, on=["Aluno"], how="left")
-        
-        # Criar matriz de cruzamento
-        matriz_cruzada = cruzada.groupby(["Classificacao", "Classificacao_Freq"]).size().unstack(fill_value=0)
-        
-        if not matriz_cruzada.empty:
-            st.markdown("**Matriz de Cruzamento: Classificação de Notas x Frequência**")
-            st.dataframe(matriz_cruzada, use_container_width=True)
-            
-            # Análise de alunos com frequência abaixo de 95%
-            freq_baixa = cruzada[cruzada["Frequencia"] < 95]
-            
-            if len(freq_baixa) > 0:
-                st.markdown("### Alunos com Frequência Abaixo de 95%")
-                # Mostrar apenas colunas relevantes para frequência baixa
-                freq_baixa_display = freq_baixa[["Aluno", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
-                # Formatar frequência
-                freq_baixa_display["Frequencia"] = freq_baixa_display["Frequencia"].apply(
-                    lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
-                )
-                st.dataframe(freq_baixa_display, use_container_width=True)
-            else:
-                st.info("Todos os alunos têm frequência ≥ 95% (Meta Favorável).")
-        else:
-            st.info("Dados insuficientes para análise cruzada.")
-    else:
-        st.info("Dados de frequência ou notas não disponíveis para análise cruzada.")
 
 st.markdown("---")
 
-# Gráficos: Notas e Frequência por Disciplina
+# Tabela: Alunos-Disciplinas em ALERTA (com cálculo de necessidade para 3º e 4º)
+st.markdown("""
+<div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Alunos/Disciplinas em ALERTA</h2>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Situações que precisam de atenção imediata</p>
+</div>
+""", unsafe_allow_html=True)
+cols_visiveis = ["Aluno", "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2", "CordaBamba"]
+tabela_alerta = (indic[indic["Alerta"]]
+                 .copy()
+                 .sort_values(["Turma", "Aluno", "Disciplina"]))
+for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
+    if c in tabela_alerta.columns:
+        # Formatar para 1 casa decimal, removendo .0 desnecessário
+        tabela_alerta[c] = tabela_alerta[c].round(1)
+        tabela_alerta[c] = tabela_alerta[c].apply(lambda x: f"{x:.1f}".rstrip('0').rstrip('.') if pd.notna(x) else x)
+
+# Função para aplicar cores na classificação (definida antes de usar)
+def color_classification(val):
+    if val == "Verde":
+        return "background-color: #d4edda; color: #155724"  # Verde claro
+    elif val == "Vermelho Duplo":
+        return "background-color: #f8d7da; color: #721c24"  # Vermelho claro
+    elif val == "Queda p/ Vermelho":
+        return "background-color: #fff3cd; color: #856404"  # Amarelo claro
+    elif val == "Recuperou":
+        return "background-color: #cce5ff; color: #004085"  # Azul claro
+    elif val == "Incompleto":
+        return "background-color: #e2e3e5; color: #383d41"  # Cinza claro
+    else:
+        return ""
+
+# Aplicar cores na tabela de alertas também
+if len(tabela_alerta) > 0:
+    styled_alerta = tabela_alerta[cols_visiveis].style.applymap(color_classification, subset=["Classificacao"])
+    st.dataframe(styled_alerta, use_container_width=True)
+    
+    # Botão de exportação para alertas
+    col_export1, col_export2 = st.columns([1, 4])
+    with col_export1:
+        if st.button("📊 Exportar Alertas", key="export_alertas", help="Baixar planilha com alunos em alerta"):
+            excel_data = criar_excel_formatado(tabela_alerta[cols_visiveis], "Alunos_em_Alerta")
+            st.download_button(
+                label="Baixar Excel",
+                data=excel_data,
+                file_name="alunos_em_alerta.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+else:
+    st.dataframe(pd.DataFrame(columns=cols_visiveis), use_container_width=True)
+
+# Tabela: Panorama Geral de Notas (todos para diagnóstico rápido)
+st.markdown("""
+<div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Panorama Geral de Notas (B1→B2)</h2>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Visão completa de todos os alunos e disciplinas</p>
+</div>
+""", unsafe_allow_html=True)
+tab_diag = indic.copy()
+for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
+    if c in tab_diag.columns:
+        # Formatar para 1 casa decimal, removendo .0 desnecessário
+        tab_diag[c] = tab_diag[c].round(1)
+        tab_diag[c] = tab_diag[c].apply(lambda x: f"{x:.1f}".rstrip('0').rstrip('.') if pd.notna(x) else x)
+
+
+
+# Aplicar estilização
+styled_table = tab_diag[["Aluno", "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]]\
+    .sort_values(["Turma", "Aluno", "Disciplina"])\
+    .style.applymap(color_classification, subset=["Classificacao"])
+
+st.dataframe(styled_table, use_container_width=True)
+
+# Botão de exportação para panorama de notas
+col_export3, col_export4 = st.columns([1, 4])
+with col_export3:
+        if st.button("📊 Exportar Panorama", key="export_panorama", help="Baixar planilha com panorama geral de notas"):
+            excel_data = criar_excel_formatado(tab_diag[["Aluno", "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]], "Panorama_Geral_Notas")
+            st.download_button(
+                label="Baixar Excel",
+                data=excel_data,
+                file_name="panorama_notas.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+# Legenda de cores
+st.markdown("### Legenda de Cores")
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.markdown("""
+    **Verde**: Aluno está bem (N1≥6 e N2≥6)  
+    **Vermelho Duplo**: Risco alto (N1<6 e N2<6)
+    """)
+with col2:
+    st.markdown("""
+    **Queda p/ Vermelho**: Piorou (N1≥6 e N2<6)  
+    **Recuperou**: Melhorou (N1<6 e N2≥6)
+    """)
+with col3:
+    st.markdown("""
+    **Incompleto**: Falta nota  
+    **Corda Bamba**: Precisa ≥7 nos próximos 2
+    """)
+
+st.markdown(
+    """
+    **Interpretação rápida**  
+    - *Vermelho Duplo*: segue risco alto (dois bimestres < 6).  
+    - *Queda p/ Vermelho*: atenção no 3º bimestre (piora do 1º para o 2º).  
+    - *Recuperou*: saiu do vermelho no 2º.  
+    - *Corda Bamba*: para fechar média 6 no ano, precisa tirar **≥ 7,0** em média no 3º e 4º.
+    """
+)
+
+# Gráficos: Notas e Frequência por Disciplina (movidos para o final)
+st.markdown("---")
+st.markdown("""
+<div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Análises Gráficas</h2>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Visualizações complementares dos dados</p>
+</div>
+""", unsafe_allow_html=True)
+
 col_graf1, col_graf2 = st.columns(2)
 
 # Gráfico: Notas abaixo de 6 por Disciplina (1º e 2º bimestres)
@@ -903,10 +1043,6 @@ with col_graf1:
             # Adicionar coluna de cores intercaladas baseada na posição após ordenação
             contagem['Cor'] = ['#1e40af' if i % 2 == 0 else '#059669' for i in range(len(contagem))]
             
-            # Debug: mostrar a ordenação
-            st.write("**Debug - Ordenação das disciplinas:**")
-            st.write(contagem[['Disciplina', 'Qtd Notas < 6', 'Cor']])
-            
             fig = px.bar(contagem, x="Disciplina", y="Qtd Notas < 6", 
                         title="Notas abaixo da média (1º + 2º Bimestre)",
                         color="Cor",
@@ -922,6 +1058,22 @@ with col_graf1:
                 xaxis={'categoryorder': 'array', 'categoryarray': contagem['Disciplina'].tolist()}
             )
             st.plotly_chart(fig, use_container_width=True)
+            
+            # Botão de exportação para dados do gráfico
+            col_export_graf1, col_export_graf2 = st.columns([1, 4])
+            with col_export_graf1:
+                if st.button("📊 Exportar Dados do Gráfico", key="export_grafico_notas", help="Baixar planilha com dados do gráfico de notas por disciplina"):
+                    # Preparar dados para exportação (remover coluna de cor)
+                    dados_export = contagem[['Disciplina', 'Qtd Notas < 6']].copy()
+                    dados_export = dados_export.rename(columns={'Qtd Notas < 6': 'Quantidade_Notas_Abaixo_6'})
+                    
+                    excel_data = criar_excel_formatado(dados_export, "Notas_Por_Disciplina")
+                    st.download_button(
+                        label="Baixar Excel",
+                        data=excel_data,
+                        file_name="notas_por_disciplina.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
         else:
             st.info("Sem notas abaixo da média para os filtros atuais.")
 
@@ -969,6 +1121,22 @@ with col_graf2:
                                      bargap=0.25, showlegend=False, xaxis_tickangle=45)
                 st.plotly_chart(fig_freq, use_container_width=True)
                 
+                # Botão de exportação para dados do gráfico de frequência
+                col_export_graf3, col_export_graf4 = st.columns([1, 4])
+                with col_export_graf3:
+                    if st.button("📊 Exportar Dados do Gráfico", key="export_grafico_freq", help="Baixar planilha com dados do gráfico de frequência"):
+                        # Preparar dados para exportação
+                        dados_export_freq = df_grafico[['Categoria', 'Quantidade']].copy()
+                        dados_export_freq = dados_export_freq.rename(columns={'Quantidade': 'Numero_Alunos'})
+                        
+                        excel_data = criar_excel_formatado(dados_export_freq, "Frequencia_Por_Faixa")
+                        st.download_button(
+                            label="Baixar Excel",
+                            data=excel_data,
+                            file_name="frequencia_por_faixa.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                
                 # Estatísticas adicionais
                 st.markdown("**Resumo das Faixas de Frequência:**")
                 col_stat1, col_stat2, col_stat3 = st.columns(3)
@@ -987,86 +1155,162 @@ with col_graf2:
         else:
             st.info("Dados de frequência não disponíveis na planilha.")
 
-# Tabela: Alunos-Disciplinas em ALERTA (com cálculo de necessidade para 3º e 4º)
-st.subheader("Alunos/Disciplinas em ALERTA")
-cols_visiveis = ["Aluno", "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2", "CordaBamba"]
-tabela_alerta = (indic[indic["Alerta"]]
-                 .copy()
-                 .sort_values(["Turma", "Aluno", "Disciplina"]))
-for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
-    if c in tabela_alerta.columns:
-        # Formatar para 1 casa decimal, removendo .0 desnecessário
-        tabela_alerta[c] = tabela_alerta[c].round(1)
-        tabela_alerta[c] = tabela_alerta[c].apply(lambda x: f"{x:.1f}".rstrip('0').rstrip('.') if pd.notna(x) else x)
+# Seção expandível: Análise Cruzada Nota x Frequência (movida para o final)
+st.markdown("---")
+st.markdown("""
+<div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Análise Cruzada</h2>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Cruzamento entre Notas e Frequência</p>
+</div>
+""", unsafe_allow_html=True)
 
-# Função para aplicar cores na classificação (definida antes de usar)
-def color_classification(val):
-    if val == "Verde":
-        return "background-color: #d4edda; color: #155724"  # Verde claro
-    elif val == "Vermelho Duplo":
-        return "background-color: #f8d7da; color: #721c24"  # Vermelho claro
-    elif val == "Queda p/ Vermelho":
-        return "background-color: #fff3cd; color: #856404"  # Amarelo claro
-    elif val == "Recuperou":
-        return "background-color: #cce5ff; color: #004085"  # Azul claro
-    elif val == "Incompleto":
-        return "background-color: #e2e3e5; color: #383d41"  # Cinza claro
+with st.expander("Análise Cruzada: Notas x Frequência"):
+    if ("Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns) and len(indic) > 0:
+        # Combinar dados de notas e frequência (priorizando Frequencia Anual)
+        if "Frequencia Anual" in df_filt.columns:
+            freq_alunos = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
+            freq_alunos = freq_alunos.rename(columns={"Frequencia Anual": "Frequencia"})
+        else:
+            freq_alunos = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
+        freq_alunos["Classificacao_Freq"] = freq_alunos["Frequencia"].apply(classificar_frequencia)
+        
+        # Merge com indicadores de notas
+        cruzada = indic.merge(freq_alunos, on=["Aluno"], how="left")
+        
+        # Criar matriz de cruzamento
+        matriz_cruzada = cruzada.groupby(["Classificacao", "Classificacao_Freq"]).size().unstack(fill_value=0)
+        
+        if not matriz_cruzada.empty:
+            st.markdown("**Matriz de Cruzamento: Classificação de Notas x Frequência**")
+            st.dataframe(matriz_cruzada, use_container_width=True)
+            
+            # Análise de alunos com frequência abaixo de 95%
+            freq_baixa = cruzada[cruzada["Frequencia"] < 95]
+            
+            if len(freq_baixa) > 0:
+                st.markdown("### Alunos com Frequência Abaixo de 95% (Cruzamento Notas x Frequência)")
+                # Mostrar apenas colunas relevantes para frequência baixa
+                freq_baixa_display = freq_baixa[["Aluno", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
+                # Formatar frequência
+                freq_baixa_display["Frequencia"] = freq_baixa_display["Frequencia"].apply(
+                    lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
+                )
+                st.dataframe(freq_baixa_display, use_container_width=True)
+                
+                # Botão de exportação para alunos com frequência baixa
+                col_export_freq_baixa1, col_export_freq_baixa2 = st.columns([1, 4])
+                with col_export_freq_baixa1:
+                    if st.button("📊 Exportar Cruzamento", key="export_freq_baixa", help="Baixar planilha com cruzamento de notas e frequência (alunos com frequência < 95%)"):
+                        excel_data = criar_excel_formatado(freq_baixa_display, "Cruzamento_Notas_Freq")
+                        st.download_button(
+                            label="Baixar Excel",
+                            data=excel_data,
+                            file_name="cruzamento_notas_frequencia.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+            else:
+                st.info("Todos os alunos têm frequência ≥ 95% (Meta Favorável).")
+        else:
+            st.info("Dados insuficientes para análise cruzada.")
     else:
-        return ""
+        st.info("Dados de frequência ou notas não disponíveis para análise cruzada.")
 
-# Aplicar cores na tabela de alertas também
-if len(tabela_alerta) > 0:
-    styled_alerta = tabela_alerta[cols_visiveis].style.applymap(color_classification, subset=["Classificacao"])
-    st.dataframe(styled_alerta, use_container_width=True)
-else:
-    st.dataframe(pd.DataFrame(columns=cols_visiveis), use_container_width=True)
+# Botão para baixar todas as planilhas em uma única planilha Excel
+st.markdown("---")
+st.markdown("""
+<div style="background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(5, 150, 105, 0.2);">
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">📊 Exportação Completa</h2>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Baixar todas as análises em uma única planilha Excel</p>
+</div>
+""", unsafe_allow_html=True)
 
-# Tabela: Quedas e Recuperações (todos para diagnóstico rápido)
-st.subheader("Quedas e Recuperações (Panorama B1→B2)")
-tab_diag = indic.copy()
-for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
-    if c in tab_diag.columns:
-        # Formatar para 1 casa decimal, removendo .0 desnecessário
-        tab_diag[c] = tab_diag[c].round(1)
-        tab_diag[c] = tab_diag[c].apply(lambda x: f"{x:.1f}".rstrip('0').rstrip('.') if pd.notna(x) else x)
-
-
-
-# Aplicar estilização
-styled_table = tab_diag[["Aluno", "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]]\
-    .sort_values(["Turma", "Aluno", "Disciplina"])\
-    .style.applymap(color_classification, subset=["Classificacao"])
-
-st.dataframe(styled_table, use_container_width=True)
-
-# Legenda de cores
-st.markdown("### Legenda de Cores")
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.markdown("""
-    **Verde**: Aluno está bem (N1≥6 e N2≥6)  
-    **Vermelho Duplo**: Risco alto (N1<6 e N2<6)
-    """)
-with col2:
-    st.markdown("""
-    **Queda p/ Vermelho**: Piorou (N1≥6 e N2<6)  
-    **Recuperou**: Melhorou (N1<6 e N2≥6)
-    """)
-with col3:
-    st.markdown("""
-    **Incompleto**: Falta nota  
-    **Corda Bamba**: Precisa ≥7 nos próximos 2
-    """)
-
-st.markdown(
-    """
-    **Interpretação rápida**  
-    - *Vermelho Duplo*: segue risco alto (dois bimestres < 6).  
-    - *Queda p/ Vermelho*: atenção no 3º bimestre (piora do 1º para o 2º).  
-    - *Recuperou*: saiu do vermelho no 2º.  
-    - *Corda Bamba*: para fechar média 6 no ano, precisa tirar **≥ 7,0** em média no 3º e 4º.
-    """
-)
+col_export_all1, col_export_all2 = st.columns([1, 4])
+with col_export_all1:
+    if st.button("📊 Baixar Tudo", key="export_tudo", help="Baixar todas as análises em uma única planilha Excel com múltiplas abas"):
+        # Criar arquivo Excel com múltiplas abas
+        output = BytesIO()
+        
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Aba 1: Alunos em Alerta
+            if len(tabela_alerta) > 0:
+                tabela_alerta[cols_visiveis].to_excel(writer, sheet_name="Alunos_em_Alerta", index=False)
+            
+            # Aba 2: Panorama Geral de Notas
+            tab_diag[["Aluno", "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]].to_excel(
+                writer, sheet_name="Panorama_Geral_Notas", index=False)
+            
+            # Aba 3: Análise de Frequência (se disponível)
+            if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
+                if "Frequencia Anual" in df_filt.columns:
+                    freq_detalhada = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
+                    freq_detalhada = freq_detalhada.rename(columns={"Frequencia Anual": "Frequencia"})
+                else:
+                    freq_detalhada = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
+                
+                freq_detalhada["Classificacao_Freq"] = freq_detalhada["Frequencia"].apply(classificar_frequencia)
+                freq_detalhada["Frequencia_Formatada"] = freq_detalhada["Frequencia"].apply(
+                    lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
+                )
+                freq_detalhada[["Aluno", "Frequencia_Formatada", "Classificacao_Freq"]].to_excel(
+                    writer, sheet_name="Analise_Frequencia", index=False)
+            
+            # Aba 4: Notas por Disciplina (se houver dados)
+            base_baixas = pd.concat([notas_baixas_b1, notas_baixas_b2], ignore_index=True)
+            if len(base_baixas) > 0:
+                contagem = base_baixas.groupby("Disciplina")["Nota"].count().reset_index()
+                contagem = contagem.rename(columns={"Nota": "Quantidade_Notas_Abaixo_6"})
+                contagem = contagem.sort_values("Quantidade_Notas_Abaixo_6", ascending=False).reset_index(drop=True)
+                contagem.to_excel(writer, sheet_name="Notas_Por_Disciplina", index=False)
+            
+            # Aba 5: Frequência por Faixas (se disponível)
+            if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
+                if "Frequencia Anual" in df_filt.columns:
+                    freq_geral = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
+                    freq_geral = freq_geral.rename(columns={"Frequencia Anual": "Frequencia"})
+                else:
+                    freq_geral = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
+                
+                freq_geral["Classificacao_Freq"] = freq_geral["Frequencia"].apply(classificar_frequencia_geral)
+                contagem_freq_geral = freq_geral["Classificacao_Freq"].value_counts()
+                
+                dados_grafico = []
+                for categoria, quantidade in contagem_freq_geral.items():
+                    if categoria != "Sem dados":
+                        dados_grafico.append({
+                            "Categoria": categoria,
+                            "Numero_Alunos": quantidade
+                        })
+                
+                if dados_grafico:
+                    df_grafico = pd.DataFrame(dados_grafico)
+                    df_grafico.to_excel(writer, sheet_name="Frequencia_Por_Faixa", index=False)
+            
+            # Aba 6: Cruzamento Notas x Frequência (se disponível)
+            if ("Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns) and len(indic) > 0:
+                if "Frequencia Anual" in df_filt.columns:
+                    freq_alunos = df_filt.groupby(["Aluno"])["Frequencia Anual"].last().reset_index()
+                    freq_alunos = freq_alunos.rename(columns={"Frequencia Anual": "Frequencia"})
+                else:
+                    freq_alunos = df_filt.groupby(["Aluno"])["Frequencia"].last().reset_index()
+                
+                freq_alunos["Classificacao_Freq"] = freq_alunos["Frequencia"].apply(classificar_frequencia)
+                cruzada = indic.merge(freq_alunos, on=["Aluno"], how="left")
+                freq_baixa = cruzada[cruzada["Frequencia"] < 95]
+                
+                if len(freq_baixa) > 0:
+                    freq_baixa_display = freq_baixa[["Aluno", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
+                    freq_baixa_display["Frequencia"] = freq_baixa_display["Frequencia"].apply(
+                        lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
+                    )
+                    freq_baixa_display.to_excel(writer, sheet_name="Cruzamento_Notas_Freq", index=False)
+        
+        output.seek(0)
+        st.download_button(
+            label="📥 Baixar Planilha Completa",
+            data=output.getvalue(),
+            file_name="painel_sge_completo.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
 # Assinatura discreta do criador
 st.markdown("---")
@@ -1081,5 +1325,6 @@ st.markdown(
     """, 
     unsafe_allow_html=True
 )
+
 
 
