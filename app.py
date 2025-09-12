@@ -326,14 +326,34 @@ st.sidebar.markdown("""
     <h3 style="color: #047857; margin: 0; font-size: 1em; font-weight: 600;">Status</h3>
 </div>
 """, unsafe_allow_html=True)
-status_sel = st.sidebar.selectbox("Selecione o status:", ["Todos"] + status_opcoes, help="Filtre por status do aluno")
+# Botões de ação rápida para status
+col_s1, col_s2 = st.sidebar.columns(2)
+with col_s1:
+    if st.button("Todas", key="btn_todas_status", help="Selecionar todos os status"):
+        st.session_state.status_selecionados = status_opcoes
+with col_s2:
+    if st.button("Limpar", key="btn_limpar_status", help="Limpar seleção"):
+        st.session_state.status_selecionados = []
+
+# Inicializar estado se não existir
+if 'status_selecionados' not in st.session_state:
+    st.session_state.status_selecionados = []
+
+status_sel = st.sidebar.multiselect(
+    "Selecione os status:", 
+    status_opcoes, 
+    default=st.session_state.status_selecionados,
+    help="Use os botões acima para seleção rápida"
+)
 
 # Filtrar dados baseado na escola e status selecionados para mostrar opções relevantes
 df_temp = df.copy()
 if escola_sel != "Todas":
     df_temp = df_temp[df_temp["Escola"] == escola_sel]
-if status_sel != "Todos":
-    df_temp = df_temp[df_temp["Status"] == status_sel]
+if status_sel:  # Se algum status foi selecionado
+    df_temp = df_temp[df_temp["Status"].isin(status_sel)]
+else:  # Se nenhum status selecionado, mostra todos
+    pass  # Mantém todos os status
 
 turmas = sorted(df_temp["Turma"].dropna().unique().tolist()) if "Turma" in df_temp.columns else []
 disciplinas = sorted(df_temp["Disciplina"].dropna().unique().tolist()) if "Disciplina" in df_temp.columns else []
@@ -400,8 +420,10 @@ aluno_sel = st.sidebar.selectbox("Selecione o aluno:", ["Todos"] + alunos, help=
 df_filt = df.copy()
 if escola_sel != "Todas":
     df_filt = df_filt[df_filt["Escola"] == escola_sel]
-if status_sel != "Todos":
-    df_filt = df_filt[df_filt["Status"] == status_sel]
+if status_sel:  # Se algum status foi selecionado
+    df_filt = df_filt[df_filt["Status"].isin(status_sel)]
+else:  # Se nenhum status selecionado, mostra todos
+    pass  # Mantém todos os status
 if turma_sel:  # Se alguma turma foi selecionada
     df_filt = df_filt[df_filt["Turma"].isin(turma_sel)]
 else:  # Se nenhuma turma selecionada, mostra todas
