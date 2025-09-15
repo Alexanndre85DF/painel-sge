@@ -19,6 +19,50 @@ SOMA_FINAL_ALVO = MEDIA_FINAL_ALVO * 4  # 24 pontos no ano
 # -----------------------------
 # Utilidades
 # -----------------------------
+def detectar_tipo_planilha(df):
+    """
+    Detecta automaticamente o tipo de planilha baseado nas colunas disponíveis
+    Retorna: 'notas_frequencia', 'conteudo_aplicado' ou 'censo_escolar'
+    """
+    colunas = [col.lower().strip() for col in df.columns]
+
+    # Verificar se é planilha de censo escolar
+    censo_indicators = [
+        'código', 'superv', 'convên', 'entidade', 'inep', 'situação', 'classific',
+        'nome', 'endereço', 'bairro', 'distrito', 'cep', 'cnpj', 'telefone', 'email',
+        'nível de', 'categoria', 'tipo de estrutura', 'etapas', 'ano letivo', 'calendário',
+        'curso', 'avaliação', 'conceito', 'servidor', 'turno', 'horário', 'tempo',
+        'média', 'salário', 'língua', 'professor', 'área de cargo', 'data na', 'cpf'
+    ]
+
+    # Verificar se é planilha de conteúdo aplicado
+    conteudo_indicators = [
+        'componente curricu', 'atividade/conteúdo', 'situação', 'data', 'horário'
+    ]
+
+    # Verificar se é planilha de notas/frequência
+    notas_indicators = [
+        'aluno', 'nota', 'frequencia', 'turma', 'escola', 'disciplina', 'periodo'
+    ]
+
+    censo_score = sum(1 for indicator in censo_indicators
+                      if any(indicator in col for col in colunas))
+    conteudo_score = sum(1 for indicator in conteudo_indicators
+                         if any(indicator in col for col in colunas))
+    notas_score = sum(1 for indicator in notas_indicators
+                      if any(indicator in col for col in colunas))
+
+    # Se tem mais indicadores de censo escolar, é esse tipo
+    if censo_score >= 8:
+        return 'censo_escolar'
+    elif conteudo_score >= 3:
+        return 'conteudo_aplicado'
+    elif notas_score >= 3:
+        return 'notas_frequencia'
+    else:
+        # Se não conseguir detectar claramente, assume notas/frequência como padrão
+        return 'notas_frequencia'
+
 @st.cache_data(show_spinner=False)
 def carregar_dados(arquivo, sheet=None):
     if arquivo is None:
@@ -29,7 +73,60 @@ def carregar_dados(arquivo, sheet=None):
 
     # Normalizar nomes de colunas
     df.columns = [c.strip() for c in df.columns]
+    
+    # Detectar tipo de planilha
+    tipo_planilha = detectar_tipo_planilha(df)
+    
+    if tipo_planilha == 'conteudo_aplicado':
+        # Processar planilha de conteúdo aplicado
+        return processar_conteudo_aplicado(df)
+    elif tipo_planilha == 'censo_escolar':
+        # Processar planilha do censo escolar
+        return processar_censo_escolar(df)
+    else:
+        # Processar planilha de notas/frequência (padrão atual)
+        return processar_notas_frequencia(df)
 
+def processar_conteudo_aplicado(df):
+    """Processa planilha de conteúdo aplicado"""
+    # Mapear colunas para nomes padronizados
+    mapeamento_colunas = {}
+    
+    for col in df.columns:
+        col_lower = col.lower().strip()
+        if 'componente curricu' in col_lower:
+            mapeamento_colunas[col] = 'Disciplina'
+        elif 'atividade/conteúdo' in col_lower or 'atividade' in col_lower:
+            mapeamento_colunas[col] = 'Atividade'
+        elif 'situação' in col_lower:
+            mapeamento_colunas[col] = 'Status'
+        elif 'data' in col_lower:
+            mapeamento_colunas[col] = 'Data'
+        elif 'horário' in col_lower:
+            mapeamento_colunas[col] = 'Horario'
+    
+    df = df.rename(columns=mapeamento_colunas)
+    
+    # Converter Data para datetime se possível
+    if 'Data' in df.columns:
+        # Tentar diferentes formatos de data
+        df['Data'] = pd.to_datetime(df['Data'], format='%d/%m/%Y', errors='coerce')
+        # Se não funcionar, tentar formato automático
+        if df['Data'].isna().all():
+            df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
+    
+    # Padronizar texto dos campos principais
+    for col in ['Disciplina', 'Atividade', 'Status']:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
+    
+    # Adicionar tipo de planilha para identificação
+    df.attrs['tipo_planilha'] = 'conteudo_aplicado'
+    
+    return df
+
+def processar_notas_frequencia(df):
+    """Processa planilha de notas/frequência (processamento atual)"""
     # Garantir colunas esperadas (flexível aos nomes encontrados)
     # Esperados: Escola, Turma, Turno, Aluno, Periodo, Disciplina, Nota, Falta, Frequência, Frequência Anual
     # Algumas planilhas têm "Período" com acento; vamos padronizar para "Periodo"
@@ -64,8 +161,820 @@ def carregar_dados(arquivo, sheet=None):
     for col in ["Escola", "Turma", "Turno", "Aluno", "Status", "Periodo", "Disciplina"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip()
-
+    
+    # Adicionar tipo de planilha para identificação
+    df.attrs['tipo_planilha'] = 'notas_frequencia'
+    
     return df
+
+def processar_censo_escolar(df):
+    """
+    Processa dados do Censo Escolar - Lista de Estudantes
+    """
+    # Normalizar nomes das colunas
+    df.columns = df.columns.str.strip()
+    
+    # Mapear colunas específicas da planilha ListaDeEstudantes_TurmaEscolarização
+    colunas_mapeadas = {}
+    for col in df.columns:
+        col_lower = col.lower()
+        if col == 'Nome':
+            colunas_mapeadas[col] = 'Nome_Estudante'
+        elif col == 'Escola':
+            colunas_mapeadas[col] = 'Escola'
+        elif col == 'CPF':
+            colunas_mapeadas[col] = 'CPF'
+        elif col == 'INEP':
+            colunas_mapeadas[col] = 'Codigo_Estudante'
+        elif col == 'Situação da Matrícula':
+            colunas_mapeadas[col] = 'Situacao'
+        elif col == 'Turno':
+            colunas_mapeadas[col] = 'Turno'
+        elif col == 'Data Nascimento':
+            colunas_mapeadas[col] = 'Data_Nascimento'
+        elif col == 'Nível de Ensino':
+            colunas_mapeadas[col] = 'Nivel_Educacao'
+        elif col == 'Ano/Série':
+            colunas_mapeadas[col] = 'Ano_Serie'
+        elif col == 'Descrição Turma':
+            colunas_mapeadas[col] = 'Turma'
+        elif col == 'Entidade Conveniada':
+            colunas_mapeadas[col] = 'Entidade'
+        elif col == 'Superintendência Regional':
+            colunas_mapeadas[col] = 'Supervisao'
+        elif col == 'Convênio':
+            colunas_mapeadas[col] = 'Convenio'
+        elif col == 'INEP da Escola':
+            colunas_mapeadas[col] = 'INEP_Escola'
+        elif col == 'Classificação da Escola':
+            colunas_mapeadas[col] = 'Classificacao'
+        elif col == 'Endereço':
+            colunas_mapeadas[col] = 'Endereco'
+        elif col == 'Bairro':
+            colunas_mapeadas[col] = 'Bairro'
+        elif col == 'Distrito':
+            colunas_mapeadas[col] = 'Distrito'
+        elif col == 'Cep':
+            colunas_mapeadas[col] = 'CEP'
+        elif col == 'Telefone Principal':
+            colunas_mapeadas[col] = 'Telefone'
+        elif col == 'E-mail':
+            colunas_mapeadas[col] = 'Email'
+        elif col == 'CNPJ':
+            colunas_mapeadas[col] = 'CNPJ'
+        elif col == 'Carga Horária':
+            colunas_mapeadas[col] = 'Carga_Horaria'
+        elif col == 'Entrada':
+            colunas_mapeadas[col] = 'Data_Entrada'
+        elif col == 'Data de saída':
+            colunas_mapeadas[col] = 'Data_Saida'
+        elif col == 'Cor/Raça':
+            colunas_mapeadas[col] = 'Cor_Raca'
+    
+    # Renomear colunas
+    df = df.rename(columns=colunas_mapeadas)
+    
+    # Converter tipos de dados
+    if 'Data_Nascimento' in df.columns:
+        df['Data_Nascimento'] = pd.to_datetime(df['Data_Nascimento'], dayfirst=True, errors='coerce')
+    
+    if 'Data_Entrada' in df.columns:
+        df['Data_Entrada'] = pd.to_datetime(df['Data_Entrada'], dayfirst=True, errors='coerce')
+    
+    if 'Data_Saida' in df.columns:
+        df['Data_Saida'] = pd.to_datetime(df['Data_Saida'], dayfirst=True, errors='coerce')
+    
+    # Padronizar texto dos campos principais
+    for col in ['Nome_Estudante', 'Escola', 'Situacao', 'Turno', 'Nivel_Educacao', 'Ano_Serie', 'Turma']:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
+    
+    # Marcar tipo de planilha
+    df.attrs['tipo_planilha'] = 'censo_escolar'
+    
+    return df
+
+def criar_interface_censo_escolar(df):
+    """Cria interface específica para análise do Censo Escolar"""
+    
+    # Header específico para censo escolar
+    st.markdown("""
+    <div style="background: linear-gradient(90deg, #1e40af 0%, #3b82f6 100%); 
+                padding: 2rem; border-radius: 10px; margin-bottom: 2rem; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 2.5rem; font-weight: bold;">
+            📊 Painel Censo Escolar
+        </h1>
+        <p style="color: #e0e7ff; margin: 0.5rem 0 0 0; font-size: 1.2rem;">
+            Identificação de Duplicatas - Estudantes em Múltiplas Escolas/Turmas
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Resumo Geral Simples
+    st.markdown("### 📊 Resumo Geral")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total de Registros", f"{len(df):,}")
+    
+    with col2:
+        escolas_unicas = df['Escola'].nunique() if 'Escola' in df.columns else 0
+        st.metric("Escolas", escolas_unicas)
+    
+    with col3:
+        estudantes_unicos = df['Nome_Estudante'].nunique() if 'Nome_Estudante' in df.columns else 0
+        st.metric("Estudantes Únicos", estudantes_unicos)
+    
+    with col4:
+        turmas_unicas = df['Turma'].nunique() if 'Turma' in df.columns else 0
+        st.metric("Turmas", turmas_unicas)
+    
+    # Filtros Simples
+    st.sidebar.markdown("### 🔍 Filtros")
+    
+    # Filtro por Escola
+    if 'Escola' in df.columns:
+        escolas_disponiveis = ['Todas as Escolas'] + sorted(df['Escola'].dropna().unique().tolist())
+        escola_sel = st.sidebar.selectbox("Escola", escolas_disponiveis)
+        
+        if escola_sel != 'Todas as Escolas':
+            df_filt = df[df['Escola'] == escola_sel].copy()
+        else:
+            df_filt = df.copy()
+    else:
+        df_filt = df.copy()
+        escola_sel = 'Todas as Escolas'
+    
+    # Filtro por Situação (apenas Matriculado)
+    if 'Situacao' in df.columns:
+        situacoes_disponiveis = ['Todas as Situações'] + sorted(df_filt['Situacao'].dropna().unique().tolist())
+        situacao_sel = st.sidebar.selectbox("Situação", situacoes_disponiveis)
+        
+        if situacao_sel != 'Todas as Situações':
+            df_filt = df_filt[df_filt['Situacao'] == situacao_sel].copy()
+    else:
+        situacao_sel = 'Todas as Situações'
+    
+    # Resumo dos Dados Filtrados
+    st.markdown("### 📋 Dados Após Filtros")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Registros", f"{len(df_filt):,}")
+    
+    with col2:
+        estudantes_filtrados = df_filt['Nome_Estudante'].nunique() if 'Nome_Estudante' in df_filt.columns else 0
+        st.metric("Estudantes", estudantes_filtrados)
+    
+    with col3:
+        escolas_filtradas = df_filt['Escola'].nunique() if 'Escola' in df_filt.columns else 0
+        st.metric("Escolas", escolas_filtradas)
+    
+    # Análise de Duplicatas - Foco Principal
+    st.markdown("### 🔍 Duplicatas Encontradas")
+    
+    if 'Nome_Estudante' in df_filt.columns and 'Escola' in df_filt.columns:
+        # 1. Duplicatas por Escola (estudante em múltiplas escolas)
+        duplicatas_escola = df_filt.groupby('Nome_Estudante').agg({
+            'Escola': 'nunique',
+            'Turma': 'nunique' if 'Turma' in df_filt.columns else 'count'
+        }).reset_index()
+        
+        estudantes_multiplas_escolas = duplicatas_escola[duplicatas_escola['Escola'] > 1]
+        
+        # 2. Duplicatas por Turma (estudante em múltiplas turmas na mesma escola)
+        duplicatas_turma = df_filt.groupby(['Nome_Estudante', 'Escola']).agg({
+            'Turma': 'nunique' if 'Turma' in df_filt.columns else 'count'
+        }).reset_index()
+        
+        estudantes_multiplas_turmas = duplicatas_turma[duplicatas_turma['Turma'] > 1]
+        
+        # Métricas Principais
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Em Múltiplas Escolas", len(estudantes_multiplas_escolas))
+        
+        with col2:
+            st.metric("Em Múltiplas Turmas", len(estudantes_multiplas_turmas))
+        
+        with col3:
+            total_duplicatas = len(estudantes_multiplas_escolas) + len(estudantes_multiplas_turmas)
+            st.metric("Total Duplicatas", total_duplicatas)
+        
+        with col4:
+            percentual = (total_duplicatas / len(df_filt['Nome_Estudante'].unique())) * 100 if len(df_filt['Nome_Estudante'].unique()) > 0 else 0
+            st.metric("Percentual", f"{percentual:.1f}%")
+        
+        # Tabelas Detalhadas
+        if len(estudantes_multiplas_escolas) > 0 or len(estudantes_multiplas_turmas) > 0:
+            
+            # 1. Estudantes em Múltiplas Escolas (Detalhado)
+            if len(estudantes_multiplas_escolas) > 0:
+                st.markdown("#### 🏫 Estudantes em Múltiplas Escolas")
+                
+                # Criar tabela detalhada mostrando escola + turma para cada estudante
+                duplicatas_escola_detalhadas = []
+                for _, row in estudantes_multiplas_escolas.iterrows():
+                    nome = row['Nome_Estudante']
+                    dados_estudante = df_filt[df_filt['Nome_Estudante'] == nome]
+                    
+                    # Para cada escola do estudante, mostrar a turma correspondente
+                    for _, linha in dados_estudante.iterrows():
+                        duplicatas_escola_detalhadas.append({
+                            'Nome': nome,
+                            'Escola': linha['Escola'],
+                            'Turma': linha['Turma'] if 'Turma' in linha else 'N/A',
+                            'CPF': linha['CPF'] if 'CPF' in linha else 'N/A',
+                            'Situacao': linha['Situacao'] if 'Situacao' in linha else 'N/A'
+                        })
+                
+                df_duplicatas_escola = pd.DataFrame(duplicatas_escola_detalhadas)
+                st.dataframe(df_duplicatas_escola, use_container_width=True)
+            
+            # 2. Estudantes em Múltiplas Turmas (mesma escola) - Detalhado
+            if len(estudantes_multiplas_turmas) > 0:
+                st.markdown("#### 🎓 Estudantes em Múltiplas Turmas (Mesma Escola)")
+                
+                # Criar tabela detalhada mostrando cada linha de turma
+                duplicatas_turma_detalhadas = []
+                for _, row in estudantes_multiplas_turmas.iterrows():
+                    nome = row['Nome_Estudante']
+                    escola = row['Escola']
+                    dados_estudante = df_filt[(df_filt['Nome_Estudante'] == nome) & 
+                                            (df_filt['Escola'] == escola)]
+                    
+                    # Para cada turma do estudante na mesma escola
+                    for _, linha in dados_estudante.iterrows():
+                        duplicatas_turma_detalhadas.append({
+                            'Nome': nome,
+                            'Escola': escola,
+                            'Turma': linha['Turma'] if 'Turma' in linha else 'N/A',
+                            'CPF': linha['CPF'] if 'CPF' in linha else 'N/A',
+                            'Situacao': linha['Situacao'] if 'Situacao' in linha else 'N/A'
+                        })
+                
+                df_duplicatas_turma = pd.DataFrame(duplicatas_turma_detalhadas)
+                st.dataframe(df_duplicatas_turma, use_container_width=True)
+            else:
+                st.info("ℹ️ Nenhum estudante encontrado em múltiplas turmas da mesma escola.")
+            
+            # Botão de Download com Abas Separadas
+            st.markdown("#### 💾 Download dos Dados")
+            
+            # Preparar dados para download em abas separadas
+            if len(estudantes_multiplas_escolas) > 0 or len(estudantes_multiplas_turmas) > 0:
+                
+                # Converter para Excel com abas separadas
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    
+                    # Aba 1: Duplicatas por Escola (Detalhado)
+                    if len(estudantes_multiplas_escolas) > 0:
+                        duplicatas_escola_download = []
+                        for _, row in estudantes_multiplas_escolas.iterrows():
+                            nome = row['Nome_Estudante']
+                            dados_estudante = df_filt[df_filt['Nome_Estudante'] == nome]
+                            
+                            # Para cada escola do estudante, mostrar a turma correspondente
+                            for _, linha in dados_estudante.iterrows():
+                                duplicatas_escola_download.append({
+                                    'Nome': nome,
+                                    'Escola': linha['Escola'],
+                                    'Turma': linha['Turma'] if 'Turma' in linha else 'N/A',
+                                    'CPF': linha['CPF'] if 'CPF' in linha else 'N/A',
+                                    'Situacao': linha['Situacao'] if 'Situacao' in linha else 'N/A'
+                                })
+                        
+                        df_escola_download = pd.DataFrame(duplicatas_escola_download)
+                        df_escola_download.to_excel(writer, sheet_name='Múltiplas_Escolas', index=False)
+                    
+                    # Aba 2: Duplicatas por Turma (Detalhado)
+                    if len(estudantes_multiplas_turmas) > 0:
+                        duplicatas_turma_download = []
+                        for _, row in estudantes_multiplas_turmas.iterrows():
+                            nome = row['Nome_Estudante']
+                            escola = row['Escola']
+                            dados_estudante = df_filt[(df_filt['Nome_Estudante'] == nome) & 
+                                                    (df_filt['Escola'] == escola)]
+                            
+                            # Para cada turma do estudante na mesma escola
+                            for _, linha in dados_estudante.iterrows():
+                                duplicatas_turma_download.append({
+                                    'Nome': nome,
+                                    'Escola': escola,
+                                    'Turma': linha['Turma'] if 'Turma' in linha else 'N/A',
+                                    'CPF': linha['CPF'] if 'CPF' in linha else 'N/A',
+                                    'Situacao': linha['Situacao'] if 'Situacao' in linha else 'N/A'
+                                })
+                        
+                        df_turma_download = pd.DataFrame(duplicatas_turma_download)
+                        df_turma_download.to_excel(writer, sheet_name='Múltiplas_Turmas', index=False)
+                    
+                    # Aba 3: Resumo Geral
+                    resumo_geral = pd.DataFrame({
+                        'Tipo_Duplicata': ['Múltiplas Escolas', 'Múltiplas Turmas', 'Total'],
+                        'Quantidade': [
+                            len(estudantes_multiplas_escolas),
+                            len(estudantes_multiplas_turmas),
+                            len(estudantes_multiplas_escolas) + len(estudantes_multiplas_turmas)
+                        ],
+                        'Percentual': [
+                            f"{(len(estudantes_multiplas_escolas) / len(df_filt['Nome_Estudante'].unique())) * 100:.1f}%" if len(df_filt['Nome_Estudante'].unique()) > 0 else "0%",
+                            f"{(len(estudantes_multiplas_turmas) / len(df_filt['Nome_Estudante'].unique())) * 100:.1f}%" if len(df_filt['Nome_Estudante'].unique()) > 0 else "0%",
+                            f"{((len(estudantes_multiplas_escolas) + len(estudantes_multiplas_turmas)) / len(df_filt['Nome_Estudante'].unique())) * 100:.1f}%" if len(df_filt['Nome_Estudante'].unique()) > 0 else "0%"
+                        ]
+                    })
+                    resumo_geral.to_excel(writer, sheet_name='Resumo', index=False)
+                
+                st.download_button(
+                    label="📥 Baixar Relatório Completo (Excel com Abas)",
+                    data=output.getvalue(),
+                    file_name=f"duplicatas_censo_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        else:
+            st.success("✅ Nenhuma duplicata encontrada nos dados filtrados!")
+    
+    
+    # Dados Brutos (Opcional)
+    with st.expander("📄 Ver todos os dados", expanded=False):
+        st.dataframe(df_filt, use_container_width=True)
+
+def criar_interface_conteudo_aplicado(df):
+    """Cria interface específica para análise de conteúdo aplicado"""
+    
+    # Header específico para conteúdo aplicado
+    st.markdown("""
+    <div style="text-align: center; padding: 40px 20px; background: linear-gradient(135deg, #059669, #10b981); border-radius: 15px; margin-bottom: 30px; box-shadow: 0 8px 25px rgba(5, 150, 105, 0.3);">
+        <h1 style="color: white; margin: 0; font-size: 2.2em; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Superintendência Regional de Educação de Gurupi TO</h1>
+        <h2 style="color: white; margin: 15px 0 0 0; font-weight: 600; font-size: 1.8em; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Painel SGE - Conteúdo Aplicado</h2>
+        <h3 style="color: rgba(255,255,255,0.95); margin: 10px 0 0 0; font-weight: 500; font-size: 1.4em;">Análise de Atividades e Conteúdos Registrados</h3>
+        <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0; font-size: 1.1em; font-weight: 400;">Registros de Conteúdo Aplicado</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Métricas gerais
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(5, 150, 105, 0.2);">
+        <h3 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Visão Geral dos Registros</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        st.metric(
+            label="Total de Registros", 
+            value=f"{len(df):,}".replace(",", "."),
+            help="Total de atividades/conteúdos registrados"
+        )
+    
+    with col2:
+        disciplinas_unicas = df["Disciplina"].nunique() if "Disciplina" in df.columns else 0
+        st.metric(
+            label="Disciplinas", 
+            value=disciplinas_unicas,
+            help="Número de disciplinas diferentes"
+        )
+    
+    with col3:
+        status_unicos = df["Status"].nunique() if "Status" in df.columns else 0
+        st.metric(
+            label="Status Diferentes", 
+            value=status_unicos,
+            help="Número de status diferentes"
+        )
+    
+    with col4:
+        if "Data" in df.columns:
+            periodo_cobertura = f"{df['Data'].min().strftime('%d/%m/%Y')} a {df['Data'].max().strftime('%d/%m/%Y')}"
+            st.metric(
+                label="Período", 
+                value=periodo_cobertura,
+                help="Período coberto pelos registros"
+            )
+        else:
+            st.metric("Período", "N/A")
+    
+    with col5:
+        # Mostrar disciplina com mais registros
+        if "Disciplina" in df.columns:
+            disciplina_top = df["Disciplina"].value_counts().index[0] if len(df) > 0 else "N/A"
+            qtd_top = df["Disciplina"].value_counts().iloc[0] if len(df) > 0 else 0
+            st.metric(
+                label="Disciplina Top", 
+                value=f"{disciplina_top}",
+                delta=f"{qtd_top} registros",
+                help="Disciplina com maior número de registros"
+            )
+        else:
+            st.metric("Disciplina Top", "N/A")
+    
+    # Função para classificar por bimestre baseado nas datas
+    def classificar_bimestre(data):
+        """Classifica a data em bimestre baseado nos períodos definidos"""
+        if pd.isna(data):
+            return "Sem Data"
+        
+        # Converter para datetime se necessário
+        if not isinstance(data, pd.Timestamp):
+            data = pd.to_datetime(data, errors='coerce')
+        
+        if pd.isna(data):
+            return "Sem Data"
+        
+        # Definir períodos dos bimestres (ano 2025)
+        bimestre1_inicio = pd.to_datetime("2025-02-03")
+        bimestre1_fim = pd.to_datetime("2025-04-03")
+        
+        bimestre2_inicio = pd.to_datetime("2025-04-04")
+        bimestre2_fim = pd.to_datetime("2025-06-27")
+        
+        bimestre3_inicio = pd.to_datetime("2025-08-04")
+        bimestre3_fim = pd.to_datetime("2025-10-11")
+        
+        bimestre4_inicio = pd.to_datetime("2025-10-12")
+        bimestre4_fim = pd.to_datetime("2025-12-19")
+        
+        # Classificar por bimestre
+        if bimestre1_inicio <= data <= bimestre1_fim:
+            return "1º Bimestre"
+        elif bimestre2_inicio <= data <= bimestre2_fim:
+            return "2º Bimestre"
+        elif bimestre3_inicio <= data <= bimestre3_fim:
+            return "3º Bimestre"
+        elif bimestre4_inicio <= data <= bimestre4_fim:
+            return "4º Bimestre"
+        else:
+            return "Fora do Período Letivo"
+    
+    # Adicionar coluna de bimestre se houver dados de data
+    if "Data" in df.columns:
+        df["Bimestre"] = df["Data"].apply(classificar_bimestre)
+        
+        
+        
+        # Análise por Bimestres
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(5, 150, 105, 0.2);">
+            <h3 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Análise por Bimestres</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Contagem por bimestre
+        contagem_bimestres = df["Bimestre"].value_counts().reset_index()
+        contagem_bimestres.columns = ["Bimestre", "Quantidade"]
+        
+        # Ordenar por bimestre (1º, 2º, 3º, 4º)
+        ordem_bimestres = ["1º Bimestre", "2º Bimestre", "3º Bimestre", "4º Bimestre", "Fora do Período Letivo", "Sem Data"]
+        contagem_bimestres["Ordem"] = contagem_bimestres["Bimestre"].map({b: i for i, b in enumerate(ordem_bimestres)})
+        contagem_bimestres = contagem_bimestres.sort_values("Ordem").reset_index(drop=True)
+        
+        # Criar colunas para mostrar bimestres
+        num_bimestres = len(contagem_bimestres)
+        num_colunas_bim = min(num_bimestres, 6)
+        cols_bimestres = st.columns(num_colunas_bim)
+        
+        # Mostrar bimestres em cards
+        for i, (_, row) in enumerate(contagem_bimestres.iterrows()):
+            col_index = i % num_colunas_bim
+            with cols_bimestres[col_index]:
+                # Definir cor baseada no bimestre
+                if "1º" in row['Bimestre']:
+                    cor_borda = "#3b82f6"  # Azul
+                elif "2º" in row['Bimestre']:
+                    cor_borda = "#10b981"  # Verde
+                elif "3º" in row['Bimestre']:
+                    cor_borda = "#f59e0b"  # Amarelo
+                elif "4º" in row['Bimestre']:
+                    cor_borda = "#ef4444"  # Vermelho
+                else:
+                    cor_borda = "#6b7280"  # Cinza
+                
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #f0f9ff, #e0f2fe); border-radius: 8px; padding: 15px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid {cor_borda};">
+                    <div style="font-size: 0.9em; font-weight: 600; color: #1e40af; margin-bottom: 8px;">{row['Bimestre']}</div>
+                    <div style="font-size: 1.8em; font-weight: 700; color: #1e40af; margin: 8px 0;">{row['Quantidade']}</div>
+                    <div style="font-size: 1.1em; color: #64748b; font-weight: 600;">registros</div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Gráfico de barras por bimestre
+        fig_bimestres = px.bar(contagem_bimestres, x="Bimestre", y="Quantidade", 
+                              title="Registros por Bimestre",
+                              color="Bimestre",
+                              color_discrete_map={
+                                  "1º Bimestre": "#3b82f6",
+                                  "2º Bimestre": "#10b981", 
+                                  "3º Bimestre": "#f59e0b",
+                                  "4º Bimestre": "#ef4444",
+                                  "Fora do Período Letivo": "#6b7280",
+                                  "Sem Data": "#9ca3af"
+                              })
+        fig_bimestres.update_layout(xaxis_tickangle=45, showlegend=False)
+        st.plotly_chart(fig_bimestres, use_container_width=True)
+        
+        # Análise detalhada por bimestre - disciplinas em cada bimestre
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #7c3aed, #a855f7); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(124, 58, 237, 0.2);">
+            <h3 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Disciplinas por Bimestre</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Criar análise por bimestre e disciplina
+        bimestre_disciplina = df.groupby(['Bimestre', 'Disciplina']).size().reset_index(name='Quantidade')
+        
+        # Ordenar por bimestre e quantidade
+        ordem_bimestres = ["1º Bimestre", "2º Bimestre", "3º Bimestre", "4º Bimestre", "Fora do Período Letivo", "Sem Data"]
+        bimestre_disciplina['Ordem_Bimestre'] = bimestre_disciplina['Bimestre'].map({b: i for i, b in enumerate(ordem_bimestres)})
+        bimestre_disciplina = bimestre_disciplina.sort_values(['Ordem_Bimestre', 'Quantidade'], ascending=[True, False])
+        
+        # Mostrar cada bimestre com suas disciplinas
+        for bimestre in ordem_bimestres:
+            if bimestre in bimestre_disciplina['Bimestre'].values:
+                disciplinas_bimestre = bimestre_disciplina[bimestre_disciplina['Bimestre'] == bimestre]
+                
+                # Definir cor do bimestre
+                if "1º" in bimestre:
+                    cor_bimestre = "#3b82f6"  # Azul
+                elif "2º" in bimestre:
+                    cor_bimestre = "#10b981"  # Verde
+                elif "3º" in bimestre:
+                    cor_bimestre = "#f59e0b"  # Amarelo
+                elif "4º" in bimestre:
+                    cor_bimestre = "#ef4444"  # Vermelho
+                else:
+                    cor_bimestre = "#6b7280"  # Cinza
+                
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-radius: 8px; padding: 20px; margin: 15px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {cor_bimestre};">
+                    <h4 style="color: {cor_bimestre}; margin: 0 0 15px 0; font-size: 1.3em; font-weight: 700;">{bimestre}</h4>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Criar colunas para as disciplinas deste bimestre
+                num_disciplinas = len(disciplinas_bimestre)
+                num_colunas_disc = min(num_disciplinas, 4)  # Máximo 4 colunas
+                cols_disciplinas = st.columns(num_colunas_disc)
+                
+                # Mostrar disciplinas em cards
+                for i, (_, row) in enumerate(disciplinas_bimestre.iterrows()):
+                    col_index = i % num_colunas_disc
+                    with cols_disciplinas[col_index]:
+                        st.markdown(f"""
+                        <div style="background: linear-gradient(135deg, #ffffff, #f8fafc); border-radius: 6px; padding: 12px; margin: 5px 0; box-shadow: 0 1px 4px rgba(0,0,0,0.1); border-left: 3px solid {cor_bimestre};">
+                            <div style="font-size: 0.9em; font-weight: 600; color: #374151; margin-bottom: 6px;">{row['Disciplina']}</div>
+                            <div style="font-size: 1.5em; font-weight: 700; color: {cor_bimestre}; margin: 6px 0;">{row['Quantidade']}</div>
+                            <div style="font-size: 0.9em; color: #6b7280; font-weight: 500;">registros</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                # Gráfico de barras para este bimestre
+                fig_bimestre_disc = px.bar(disciplinas_bimestre, x="Disciplina", y="Quantidade", 
+                                          title=f"Disciplinas - {bimestre}",
+                                          color="Disciplina",
+                                          color_discrete_sequence=px.colors.qualitative.Set3)
+                fig_bimestre_disc.update_layout(xaxis_tickangle=45, showlegend=False, height=300)
+                st.plotly_chart(fig_bimestre_disc, use_container_width=True)
+    
+    # Adicionar seção com disciplinas (todas ou filtradas) - será movida para depois dos filtros
+    
+    # Filtros específicos para conteúdo aplicado
+    st.sidebar.markdown("""
+    <div style="background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(5, 150, 105, 0.2);">
+        <h2 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Filtros - Conteúdo</h2>
+        <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1em; font-weight: 500;">Filtre os registros de conteúdo</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Filtros
+    disciplinas_opcoes = sorted(df["Disciplina"].dropna().unique().tolist()) if "Disciplina" in df.columns else []
+    status_opcoes = sorted(df["Status"].dropna().unique().tolist()) if "Status" in df.columns else []
+    bimestres_opcoes = sorted(df["Bimestre"].dropna().unique().tolist()) if "Bimestre" in df.columns else []
+    
+    # Filtro de Data
+    if "Data" in df.columns:
+        st.sidebar.markdown("""
+        <div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius: 6px; padding: 8px 12px; margin: 6px 0; box-shadow: 0 1px 4px rgba(5, 150, 105, 0.1); border-left: 3px solid #059669;">
+            <h3 style="color: #047857; margin: 0; font-size: 1em; font-weight: 600;">📅 Período</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Obter datas mínima e máxima
+        data_min = df["Data"].min()
+        data_max = df["Data"].max()
+        
+        # Filtro de data com slider
+        data_range = st.sidebar.date_input(
+            "Selecione o período:",
+            value=(data_min.date(), data_max.date()),
+            min_value=data_min.date(),
+            max_value=data_max.date(),
+            help="Selecione o período para filtrar os registros"
+        )
+        
+        # Converter para datetime se necessário
+        if len(data_range) == 2:
+            data_inicio = pd.to_datetime(data_range[0])
+            data_fim = pd.to_datetime(data_range[1])
+        else:
+            data_inicio = data_min
+            data_fim = data_max
+    
+    # Filtro de Disciplina
+    st.sidebar.markdown("""
+    <div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius: 6px; padding: 8px 12px; margin: 6px 0; box-shadow: 0 1px 4px rgba(5, 150, 105, 0.1); border-left: 3px solid #059669;">
+        <h3 style="color: #047857; margin: 0; font-size: 1em; font-weight: 600;">📚 Disciplina</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    disciplina_sel = st.sidebar.multiselect(
+        "Selecione as disciplinas:", 
+        disciplinas_opcoes, 
+        help="Filtre por disciplinas específicas"
+    )
+    
+    # Filtro de Status
+    st.sidebar.markdown("""
+    <div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius: 6px; padding: 8px 12px; margin: 6px 0; box-shadow: 0 1px 4px rgba(5, 150, 105, 0.1); border-left: 3px solid #059669;">
+        <h3 style="color: #047857; margin: 0; font-size: 1em; font-weight: 600;">✅ Status</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    status_sel = st.sidebar.multiselect(
+        "Selecione os status:", 
+        status_opcoes, 
+        help="Filtre por status específicos"
+    )
+    
+    # Filtro de Bimestre
+    if "Bimestre" in df.columns and len(bimestres_opcoes) > 0:
+        st.sidebar.markdown("""
+        <div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius: 6px; padding: 8px 12px; margin: 6px 0; box-shadow: 0 1px 4px rgba(5, 150, 105, 0.1); border-left: 3px solid #059669;">
+            <h3 style="color: #047857; margin: 0; font-size: 1em; font-weight: 600;">📅 Bimestre</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        bimestre_sel = st.sidebar.multiselect(
+            "Selecione os bimestres:", 
+            bimestres_opcoes, 
+            help="Filtre por bimestres específicos"
+        )
+    else:
+        bimestre_sel = []
+    
+    # Aplicar filtros
+    df_filtrado = df.copy()
+    
+    # Filtro por data
+    if "Data" in df.columns and 'data_inicio' in locals() and 'data_fim' in locals():
+        df_filtrado = df_filtrado[
+            (df_filtrado["Data"] >= data_inicio) & 
+            (df_filtrado["Data"] <= data_fim)
+        ]
+    
+    # Filtro por disciplina
+    if disciplina_sel:
+        df_filtrado = df_filtrado[df_filtrado["Disciplina"].isin(disciplina_sel)]
+    
+    # Filtro por status
+    if status_sel:
+        df_filtrado = df_filtrado[df_filtrado["Status"].isin(status_sel)]
+    
+    # Filtro por bimestre
+    if bimestre_sel:
+        df_filtrado = df_filtrado[df_filtrado["Bimestre"].isin(bimestre_sel)]
+    
+    # Verificar se há filtros aplicados (agora que as variáveis estão definidas)
+    tem_filtros = (
+        ('data_inicio' in locals() and 'data_fim' in locals() and 
+         (data_inicio != df["Data"].min() or data_fim != df["Data"].max())) or
+        disciplina_sel or 
+        status_sel or
+        bimestre_sel
+    )
+    
+    # Determinar título e dados baseado nos filtros
+    if tem_filtros:
+        titulo_secao = "Disciplinas Filtradas"
+        dados_disciplinas = df_filtrado["Disciplina"].value_counts().reset_index() if len(df_filtrado) > 0 else pd.DataFrame()
+    else:
+        titulo_secao = "Todas as Disciplinas"
+        dados_disciplinas = df["Disciplina"].value_counts().reset_index()
+    
+    dados_disciplinas.columns = ["Disciplina", "Quantidade"]
+    
+    # Adicionar seção com disciplinas (todas ou filtradas)
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(5, 150, 105, 0.2);">
+        <h3 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">{titulo_secao}</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if len(dados_disciplinas) > 0:
+        # Calcular número de colunas necessárias (máximo 6 para não ficar muito pequeno)
+        num_disciplinas = len(dados_disciplinas)
+        num_colunas = min(num_disciplinas, 6)
+        
+        # Criar colunas dinamicamente
+        cols_disciplinas = st.columns(num_colunas)
+        
+        # Mostrar disciplinas em cards
+        for i, (_, row) in enumerate(dados_disciplinas.iterrows()):
+            col_index = i % num_colunas
+            with cols_disciplinas[col_index]:
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius: 8px; padding: 15px; margin: 5px 0; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.15); border-left: 4px solid #059669;">
+                    <div style="font-size: 0.9em; font-weight: 600; color: #047857; margin-bottom: 8px;">{row['Disciplina']}</div>
+                    <div style="font-size: 1.8em; font-weight: 700; color: #047857; margin: 8px 0;">{row['Quantidade']}</div>
+                    <div style="font-size: 1.1em; color: #64748b; font-weight: 600;">registros</div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Se há mais de 6 disciplinas, mostrar aviso
+        if num_disciplinas > 6:
+            st.info(f"Mostrando as primeiras 6 disciplinas de {num_disciplinas} total. Use os filtros para focar em disciplinas específicas.")
+    
+    # Mostrar informações dos filtros aplicados
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(5, 150, 105, 0.2);">
+        <h3 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Dados Filtrados</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Métricas dos dados filtrados
+    col_filt1, col_filt2, col_filt3 = st.columns(3)
+    
+    with col_filt1:
+        st.metric(
+            label="Registros Filtrados", 
+            value=f"{len(df_filtrado):,}".replace(",", "."),
+            delta=f"{len(df_filtrado) - len(df)}" if len(df_filtrado) != len(df) else "0",
+            help="Total de registros após aplicar os filtros"
+        )
+    
+    with col_filt2:
+        if len(df_filtrado) > 0 and "Disciplina" in df_filtrado.columns:
+            disciplinas_filtradas = df_filtrado["Disciplina"].nunique()
+            st.metric(
+                label="Disciplinas no Filtro", 
+                value=disciplinas_filtradas,
+                help="Número de disciplinas nos dados filtrados"
+            )
+        else:
+            st.metric("Disciplinas no Filtro", "0")
+    
+    with col_filt3:
+        if len(df_filtrado) > 0 and "Data" in df_filtrado.columns:
+            periodo_filtrado = f"{df_filtrado['Data'].min().strftime('%d/%m/%Y')} a {df_filtrado['Data'].max().strftime('%d/%m/%Y')}"
+            st.metric(
+                label="Período Filtrado", 
+                value=periodo_filtrado,
+                help="Período dos dados filtrados"
+            )
+        else:
+            st.metric("Período Filtrado", "N/A")
+    
+    # Análise por Disciplina
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(5, 150, 105, 0.2);">
+        <h3 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Análise por Disciplina</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if len(df_filtrado) > 0:
+        # Contagem por disciplina
+        contagem_disciplina = df_filtrado["Disciplina"].value_counts().reset_index()
+        contagem_disciplina.columns = ["Disciplina", "Quantidade"]
+        
+        # Gráfico de barras
+        fig = px.bar(contagem_disciplina, x="Disciplina", y="Quantidade", 
+                    title="Registros por Disciplina",
+                    color="Quantidade",
+                    color_continuous_scale="Viridis")
+        fig.update_layout(xaxis_tickangle=45)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Tabela detalhada
+        st.markdown("### Registros Detalhados")
+        st.dataframe(df_filtrado, use_container_width=True)
+        
+        # Botão de exportação
+        col_export1, col_export2 = st.columns([1, 4])
+        with col_export1:
+            if st.button("📊 Exportar Dados", key="export_conteudo", help="Baixar planilha com análise de conteúdo aplicado"):
+                excel_data = criar_excel_formatado(df_filtrado, "Conteudo_Aplicado")
+                st.download_button(
+                    label="Baixar Excel",
+                    data=excel_data,
+                    file_name="conteudo_aplicado.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+    else:
+        st.info("Nenhum registro encontrado com os filtros aplicados.")
 
 def mapear_bimestre(periodo: str) -> int | None:
     """Mapeia 'Primeiro Bimestre' -> 1, 'Segundo Bimestre' -> 2, etc."""
@@ -226,6 +1135,49 @@ with col_info:
 # Carregar
 try:
     df = carregar_dados(arquivo)
+    
+    # Verificar tipo de planilha e rotear para interface apropriada
+    tipo_planilha = df.attrs.get('tipo_planilha', 'notas_frequencia')
+    
+    if tipo_planilha == 'conteudo_aplicado':
+        # Mostrar interface específica para conteúdo aplicado
+        criar_interface_conteudo_aplicado(df)
+        
+        # Assinatura discreta do criador
+        st.markdown("---")
+        st.markdown(
+            """
+            <div style="text-align: center; margin-top: 40px; padding: 20px;">
+                <p style="margin: 0;">
+                    Desenvolvido por <strong style="color: #059669;">Alexandre Tolentino</strong> • 
+                    <em>Painel SGE - Conteúdo Aplicado</em>
+                </p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+    elif tipo_planilha == 'censo_escolar':
+        # Mostrar interface específica para censo escolar
+        criar_interface_censo_escolar(df)
+        
+        # Assinatura discreta do criador
+        st.markdown("---")
+        st.markdown(
+            """
+            <div style="text-align: center; margin-top: 40px; padding: 20px;">
+                <p style="margin: 0;">
+                    Desenvolvido por <strong style="color: #059669;">Alexandre Tolentino</strong> • 
+                    <em>Painel SGE - Censo Escolar</em>
+                </p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+        st.stop()
+    else:
+        # Continuar com interface padrão de notas/frequência
+        pass
+        
 except FileNotFoundError:
     st.error("Não encontrei `dados.xlsx` na pasta e nenhum arquivo foi enviado no uploader.")
     
@@ -1543,3 +2495,5 @@ st.markdown(
     """, 
     unsafe_allow_html=True
 )
+        
+        
