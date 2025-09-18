@@ -1430,11 +1430,12 @@ if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
             return "Meta Favorável"
     
     # Calcular frequências para visão geral (usando dados filtrados)
+    # Agrupar apenas por Aluno para evitar duplicação quando aluno está em múltiplas turmas
     if "Frequencia Anual" in df_filt.columns:
-        freq_geral = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
+        freq_geral = df_filt.groupby("Aluno")["Frequencia Anual"].last().reset_index()
         freq_geral = freq_geral.rename(columns={"Frequencia Anual": "Frequencia"})
     else:
-        freq_geral = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
+        freq_geral = df_filt.groupby("Aluno")["Frequencia"].last().reset_index()
     
     freq_geral["Classificacao_Freq"] = freq_geral["Frequencia"].apply(classificar_frequencia_geral)
     contagem_freq_geral = freq_geral["Classificacao_Freq"].value_counts()
@@ -1747,12 +1748,12 @@ def classificar_frequencia(freq):
 # Calcular frequências se a coluna existir
 if "Frequencia Anual" in df_filt.columns:
     # Usar frequência anual se disponível
-    freq_atual = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
+    freq_atual = df_filt.groupby("Aluno")["Frequencia Anual"].last().reset_index()
     freq_atual = freq_atual.rename(columns={"Frequencia Anual": "Frequencia"})
     freq_atual["Classificacao_Freq"] = freq_atual["Frequencia"].apply(classificar_frequencia)
 elif "Frequencia" in df_filt.columns:
     # Usar frequência do período se anual não estiver disponível
-    freq_atual = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
+    freq_atual = df_filt.groupby("Aluno")["Frequencia"].last().reset_index()
     freq_atual["Classificacao_Freq"] = freq_atual["Frequencia"].apply(classificar_frequencia)
     
     # Contar por classificação
@@ -1805,14 +1806,14 @@ else:
 
 with st.expander(expander_title):
     if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
-        # Tabela de frequência por aluno (incluindo turma)
+        # Tabela de frequência por aluno (agrupando apenas por aluno para evitar duplicação)
         if "Frequencia Anual" in df_filt.columns:
-            freq_detalhada = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
+            freq_detalhada = df_filt.groupby("Aluno")["Frequencia Anual"].last().reset_index()
             freq_detalhada = freq_detalhada.rename(columns={"Frequencia Anual": "Frequencia"})
         else:
-            freq_detalhada = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
+            freq_detalhada = df_filt.groupby("Aluno")["Frequencia"].last().reset_index()
         freq_detalhada["Classificacao_Freq"] = freq_detalhada["Frequencia"].apply(classificar_frequencia)
-        freq_detalhada = freq_detalhada.sort_values(["Turma", "Aluno"])
+        freq_detalhada = freq_detalhada.sort_values("Aluno")
         
         # Função para colorir frequência
         def color_frequencia(val):
@@ -2495,5 +2496,3 @@ st.markdown(
     """, 
     unsafe_allow_html=True
 )
-        
-        
