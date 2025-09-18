@@ -1836,7 +1836,7 @@ with st.expander(expander_title):
         )
         
         # Aplicar cores
-        styled_freq = freq_detalhada[["Aluno", "Turma", "Frequencia_Formatada", "Classificacao_Freq"]]\
+        styled_freq = freq_detalhada[["Aluno", "Frequencia_Formatada", "Classificacao_Freq"]]\
             .style.applymap(color_frequencia, subset=["Classificacao_Freq"])
         
         st.dataframe(styled_freq, use_container_width=True)
@@ -1845,7 +1845,7 @@ with st.expander(expander_title):
         col_export5, col_export6 = st.columns([1, 4])
         with col_export5:
             if st.button("📊 Exportar Frequência", key="export_frequencia", help="Baixar planilha com análise de frequência"):
-                excel_data = criar_excel_formatado(freq_detalhada[["Aluno", "Turma", "Frequencia_Formatada", "Classificacao_Freq"]], "Analise_Frequencia")
+                excel_data = criar_excel_formatado(freq_detalhada[["Aluno", "Frequencia_Formatada", "Classificacao_Freq"]], "Analise_Frequencia")
                 st.download_button(
                     label="Baixar Excel",
                     data=excel_data,
@@ -2217,16 +2217,16 @@ with col_export_all1:
             # Aba 3: Análise de Frequência (se disponível)
             if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
                 if "Frequencia Anual" in df_filt.columns:
-                    freq_detalhada = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
+                    freq_detalhada = df_filt.groupby("Aluno")["Frequencia Anual"].last().reset_index()
                     freq_detalhada = freq_detalhada.rename(columns={"Frequencia Anual": "Frequencia"})
                 else:
-                    freq_detalhada = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
+                    freq_detalhada = df_filt.groupby("Aluno")["Frequencia"].last().reset_index()
                 
                 freq_detalhada["Classificacao_Freq"] = freq_detalhada["Frequencia"].apply(classificar_frequencia)
                 freq_detalhada["Frequencia_Formatada"] = freq_detalhada["Frequencia"].apply(
                     lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
                 )
-                freq_detalhada[["Aluno", "Turma", "Frequencia_Formatada", "Classificacao_Freq"]].to_excel(
+                freq_detalhada[["Aluno", "Frequencia_Formatada", "Classificacao_Freq"]].to_excel(
                     writer, sheet_name="Analise_Frequencia", index=False)
             
             # Aba 4: Notas por Disciplina (se houver dados)
