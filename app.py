@@ -157,14 +157,20 @@ def processar_notas_frequencia(df):
     if "Frequencia Anual" in df.columns:
         df["Frequencia Anual"] = pd.to_numeric(df["Frequencia Anual"], errors="coerce")
 
-    # Mapear colunas específicas se necessário
-    if "Estudante" in df.columns and "Aluno" not in df.columns:
-        df = df.rename(columns={"Estudante": "Aluno"})
-    
     # Padronizar texto dos campos principais (evita diferenças por espaços)
-    for col in ["Escola", "Turma", "Turno", "Aluno", "Status", "Periodo", "Disciplina"]:
+    for col in ["Escola", "Turma", "Turno", "Status", "Periodo", "Disciplina"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip()
+    
+    # Detectar coluna de aluno/estudante
+    coluna_aluno = None
+    for col in ["Aluno", "Nome_Estudante", "Estudante"]:
+        if col in df.columns:
+            coluna_aluno = col
+            break
+    
+    if coluna_aluno:
+        df[coluna_aluno] = df[coluna_aluno].astype(str).str.strip()
     
     # Adicionar tipo de planilha para identificação
     df.attrs['tipo_planilha'] = 'notas_frequencia'
@@ -1064,8 +1070,15 @@ def calcula_indicadores(df):
     df["Bimestre"] = df["Periodo"].apply(mapear_bimestre)
 
     # Pivot por (Aluno, Turma, Disciplina)
+    # Detectar coluna de aluno/estudante
+    coluna_aluno = None
+    for col in ["Aluno", "Nome_Estudante", "Estudante"]:
+        if col in df.columns:
+            coluna_aluno = col
+            break
+    
     pivot = df.pivot_table(
-        index=["Escola", "Turma", "Aluno", "Disciplina"],
+        index=["Escola", "Turma", coluna_aluno, "Disciplina"],
         columns="Bimestre",
         values="Nota",
         aggfunc="mean"
@@ -1249,7 +1262,14 @@ st.markdown("""
 
 col_total = st.columns(1)[0]
 with col_total:
-    total_estudantes = df["Aluno"].nunique() if "Aluno" in df.columns else 0
+    # Detectar coluna de aluno/estudante
+    coluna_aluno = None
+    for col in ["Aluno", "Nome_Estudante", "Estudante"]:
+        if col in df.columns:
+            coluna_aluno = col
+            break
+    
+    total_estudantes = df[coluna_aluno].nunique() if coluna_aluno else 0
     st.metric(
         label="Estudantes Únicos", 
         value=f"{total_estudantes:,}".replace(",", "."),
@@ -1313,7 +1333,14 @@ else:  # Se nenhum status selecionado, mostra todos
 
 turmas = sorted(df_temp["Turma"].dropna().unique().tolist()) if "Turma" in df_temp.columns else []
 disciplinas = sorted(df_temp["Disciplina"].dropna().unique().tolist()) if "Disciplina" in df_temp.columns else []
-alunos = sorted(df_temp["Aluno"].dropna().unique().tolist()) if "Aluno" in df_temp.columns else []
+# Detectar coluna de aluno/estudante
+coluna_aluno_temp = None
+for col in ["Aluno", "Nome_Estudante", "Estudante"]:
+    if col in df_temp.columns:
+        coluna_aluno_temp = col
+        break
+
+alunos = sorted(df_temp[coluna_aluno_temp].dropna().unique().tolist()) if coluna_aluno_temp else []
 
 # Filtros com interface melhorada
 st.sidebar.markdown("""
@@ -1390,7 +1417,7 @@ if disc_sel:  # Se alguma disciplina foi selecionada
 else:  # Se nenhuma disciplina selecionada, mostra todas
     pass  # Mantém todas as disciplinas
 if aluno_sel != "Todos":
-    df_filt = df_filt[df_filt["Aluno"] == aluno_sel]
+    df_filt = df_filt[df_filt[coluna_aluno] == aluno_sel]
 
 # Total de Estudantes Únicos (após filtros)
 st.markdown("""
@@ -1401,7 +1428,7 @@ st.markdown("""
 
 col_total_filt = st.columns(1)[0]
 with col_total_filt:
-    total_estudantes_filt = df_filt["Aluno"].nunique() if "Aluno" in df_filt.columns else 0
+    total_estudantes_filt = df_filt[coluna_aluno].nunique()
     st.metric(
         label="Estudantes Únicos", 
         value=f"{total_estudantes_filt:,}".replace(",", "."),
@@ -1435,11 +1462,28 @@ if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
     
     # Calcular frequências para visão geral (usando dados filtrados)
     # Agrupar apenas por Aluno para evitar duplicação quando aluno está em múltiplas turmas
+    # Verificar qual coluna de aluno existe
+    # Verificar qual coluna de aluno existe
+    if "Aluno" in df_filt.columns:
+        coluna_aluno = "Aluno"
+    elif "Nome_Estudante" in df_filt.columns:
+        coluna_aluno = "Nome_Estudante"
+    elif "Estudante" in df_filt.columns:
+        coluna_aluno = "Estudante"
+    else:
+        # Tentar encontrar uma coluna que contenha "aluno" ou "estudante"
+        colunas_possiveis = [col for col in df_filt.columns if "aluno" in col.lower() or "estudante" in col.lower()]
+        if colunas_possiveis:
+            coluna_aluno = colunas_possiveis[0]
+        else:
+            st.error("Não foi possível encontrar uma coluna de aluno/estudante. Colunas disponíveis: " + ", ".join(df_filt.columns))
+            st.stop()
+    
     if "Frequencia Anual" in df_filt.columns:
-        freq_geral = df_filt.groupby("Aluno")["Frequencia Anual"].last().reset_index()
+        freq_geral = df_filt.groupby(coluna_aluno)["Frequencia Anual"].last().reset_index()
         freq_geral = freq_geral.rename(columns={"Frequencia Anual": "Frequencia"})
     else:
-        freq_geral = df_filt.groupby("Aluno")["Frequencia"].last().reset_index()
+        freq_geral = df_filt.groupby(coluna_aluno)["Frequencia"].last().reset_index()
     
     freq_geral["Classificacao_Freq"] = freq_geral["Frequencia"].apply(classificar_frequencia_geral)
     contagem_freq_geral = freq_geral["Classificacao_Freq"].value_counts()
@@ -1516,8 +1560,8 @@ notas_baixas_b1 = df_filt[df_filt["Periodo"].str.contains("Primeiro", case=False
 notas_baixas_b2 = df_filt[df_filt["Periodo"].str.contains("Segundo", case=False, na=False) & (df_filt["Nota"] < MEDIA_APROVACAO)]
 
 # Número de alunos únicos com notas baixas (não disciplinas)
-alunos_notas_baixas_b1 = notas_baixas_b1["Aluno"].nunique() if "Aluno" in notas_baixas_b1.columns else 0
-alunos_notas_baixas_b2 = notas_baixas_b2["Aluno"].nunique() if "Aluno" in notas_baixas_b2.columns else 0
+alunos_notas_baixas_b1 = notas_baixas_b1[coluna_aluno].nunique() if coluna_aluno in notas_baixas_b1.columns else 0
+alunos_notas_baixas_b2 = notas_baixas_b2[coluna_aluno].nunique() if coluna_aluno in notas_baixas_b2.columns else 0
 
 # Calcular porcentagens baseadas no total de estudantes filtrados
 total_estudantes_para_percent = total_estudantes_filt
@@ -1596,13 +1640,13 @@ st.markdown("""
 
 col5, col6 = st.columns(2)
 
-# Métricas de alerta com destaque visual
-alerta_count = int(indic["Alerta"].sum())
+# Métricas de alerta com destaque visual (excluindo incompletos)
+alerta_count = int(indic[indic["Alerta"] & (indic["Classificacao"] != "Incompleto")].sum()["Alerta"])
 corda_bamba_count = int(indic["CordaBamba"].sum())
 
-# Calcular alunos únicos em alerta e corda bamba
-alunos_unicos_alerta = indic[indic["Alerta"]]["Aluno"].nunique()
-alunos_unicos_corda_bamba = indic[indic["CordaBamba"]]["Aluno"].nunique()
+# Calcular alunos únicos em alerta e corda bamba (excluindo incompletos)
+alunos_unicos_alerta = indic[indic["Alerta"] & (indic["Classificacao"] != "Incompleto")][coluna_aluno].nunique()
+alunos_unicos_corda_bamba = indic[indic["CordaBamba"]][coluna_aluno].nunique()
 
 with col5:
     st.markdown("""
@@ -1688,9 +1732,9 @@ with col_res4:
     # Calcular alunos com frequência baixa se disponível
     if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
         if "Frequencia Anual" in df_filt.columns:
-            freq_baixa_count = len(df_filt[df_filt["Frequencia Anual"] < 95]["Aluno"].unique())
+            freq_baixa_count = len(df_filt[df_filt["Frequencia Anual"] < 95][coluna_aluno].unique())
         else:
-            freq_baixa_count = len(df_filt[df_filt["Frequencia"] < 95]["Aluno"].unique())
+            freq_baixa_count = len(df_filt[df_filt["Frequencia"] < 95][coluna_aluno].unique())
         
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
@@ -1752,12 +1796,12 @@ def classificar_frequencia(freq):
 # Calcular frequências se a coluna existir
 if "Frequencia Anual" in df_filt.columns:
     # Usar frequência anual se disponível
-    freq_atual = df_filt.groupby("Aluno")["Frequencia Anual"].last().reset_index()
+    freq_atual = df_filt.groupby(coluna_aluno)["Frequencia Anual"].last().reset_index()
     freq_atual = freq_atual.rename(columns={"Frequencia Anual": "Frequencia"})
     freq_atual["Classificacao_Freq"] = freq_atual["Frequencia"].apply(classificar_frequencia)
 elif "Frequencia" in df_filt.columns:
     # Usar frequência do período se anual não estiver disponível
-    freq_atual = df_filt.groupby("Aluno")["Frequencia"].last().reset_index()
+    freq_atual = df_filt.groupby(coluna_aluno)["Frequencia"].last().reset_index()
     freq_atual["Classificacao_Freq"] = freq_atual["Frequencia"].apply(classificar_frequencia)
     
     # Contar por classificação
@@ -1812,12 +1856,12 @@ with st.expander(expander_title):
     if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
         # Tabela de frequência por aluno (agrupando apenas por aluno para evitar duplicação)
         if "Frequencia Anual" in df_filt.columns:
-            freq_detalhada = df_filt.groupby("Aluno")["Frequencia Anual"].last().reset_index()
+            freq_detalhada = df_filt.groupby(coluna_aluno)["Frequencia Anual"].last().reset_index()
             freq_detalhada = freq_detalhada.rename(columns={"Frequencia Anual": "Frequencia"})
         else:
-            freq_detalhada = df_filt.groupby("Aluno")["Frequencia"].last().reset_index()
+            freq_detalhada = df_filt.groupby(coluna_aluno)["Frequencia"].last().reset_index()
         freq_detalhada["Classificacao_Freq"] = freq_detalhada["Frequencia"].apply(classificar_frequencia)
-        freq_detalhada = freq_detalhada.sort_values("Aluno")
+        freq_detalhada = freq_detalhada.sort_values(coluna_aluno)
         
         # Função para colorir frequência
         def color_frequencia(val):
@@ -1840,7 +1884,7 @@ with st.expander(expander_title):
         )
         
         # Aplicar cores
-        styled_freq = freq_detalhada[["Aluno", "Frequencia_Formatada", "Classificacao_Freq"]]\
+        styled_freq = freq_detalhada[[coluna_aluno, "Frequencia_Formatada", "Classificacao_Freq"]]\
             .style.applymap(color_frequencia, subset=["Classificacao_Freq"])
         
         st.dataframe(styled_freq, use_container_width=True)
@@ -1849,7 +1893,7 @@ with st.expander(expander_title):
         col_export5, col_export6 = st.columns([1, 4])
         with col_export5:
             if st.button("📊 Exportar Frequência", key="export_frequencia", help="Baixar planilha com análise de frequência"):
-                excel_data = criar_excel_formatado(freq_detalhada[["Aluno", "Turma", "Frequencia_Formatada", "Classificacao_Freq"]], "Analise_Frequencia")
+                excel_data = criar_excel_formatado(freq_detalhada[[coluna_aluno, "Turma", "Frequencia_Formatada", "Classificacao_Freq"]], "Analise_Frequencia")
                 st.download_button(
                     label="Baixar Excel",
                     data=excel_data,
@@ -1888,10 +1932,11 @@ st.markdown("""
     <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Situações que precisam de atenção imediata</p>
 </div>
 """, unsafe_allow_html=True)
-cols_visiveis = ["Aluno", "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2", "CordaBamba"]
-tabela_alerta = (indic[indic["Alerta"]]
+cols_visiveis = [coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2", "CordaBamba"]
+# Filtrar alertas excluindo os "Incompleto" (que agora têm seção própria)
+tabela_alerta = (indic[indic["Alerta"] & (indic["Classificacao"] != "Incompleto")]
                  .copy()
-                 .sort_values(["Turma", "Aluno", "Disciplina"]))
+                 .sort_values(["Turma", coluna_aluno, "Disciplina"]))
 for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
     if c in tabela_alerta.columns:
         # Formatar para 1 casa decimal, removendo .0 desnecessário
@@ -1932,6 +1977,320 @@ if len(tabela_alerta) > 0:
 else:
     st.dataframe(pd.DataFrame(columns=cols_visiveis), use_container_width=True)
 
+# Seção separada para alunos com status "Incompleto" - Separada por Bimestres
+st.markdown("""
+<div style="background: linear-gradient(135deg, #6b7280, #9ca3af); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(107, 114, 128, 0.2);">
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Alunos/Disciplinas INCOMPLETAS</h2>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Faltam notas para completar a avaliação - Separado por Bimestres</p>
+</div>
+""", unsafe_allow_html=True)
+
+# Filtrar apenas os incompletos
+incompletos = indic[indic["Classificacao"] == "Incompleto"].copy()
+
+if len(incompletos) > 0:
+    # Separar incompletos por bimestres
+    # Incompletos do 1º bimestre: falta N1
+    incompletos_b1 = incompletos[pd.isna(incompletos["N1"])].copy()
+    
+    # Incompletos do 2º bimestre: falta N2
+    incompletos_b2 = incompletos[pd.isna(incompletos["N2"])].copy()
+    
+    # Criar abas para cada bimestre
+    tab1, tab2, tab3 = st.tabs(["📊 Resumo Geral", "1️⃣ 1º Bimestre", "2️⃣ 2º Bimestre"])
+    
+    with tab1:
+        # Estatísticas gerais dos incompletos
+        total_incompletos = len(incompletos)
+        alunos_unicos_incompletos = incompletos[coluna_aluno].nunique()
+        total_b1 = len(incompletos_b1)
+        total_b2 = len(incompletos_b2)
+        alunos_b1 = incompletos_b1[coluna_aluno].nunique()
+        alunos_b2 = incompletos_b2[coluna_aluno].nunique()
+        
+        # Criar colunas para mostrar as estatísticas gerais
+        col_gen1, col_gen2, col_gen3, col_gen4 = st.columns(4)
+        
+        with col_gen1:
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
+                <h3 style="color: #374151; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Total Incompletas</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 2.2em; font-weight: 700; color: #374151;">{total_incompletos}</div>
+                    <div style="font-size: 1.8em; font-weight: 700; color: #6b7280;">disciplinas</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col_gen2:
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
+                <h3 style="color: #374151; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Alunos Afetados</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 2.2em; font-weight: 700; color: #374151;">{alunos_unicos_incompletos}</div>
+                    <div style="font-size: 1.8em; font-weight: 700; color: #6b7280;">alunos</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col_gen3:
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
+                <h3 style="color: #374151; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Falta 1º Bimestre</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 2.2em; font-weight: 700; color: #374151;">{total_b1}</div>
+                    <div style="font-size: 1.8em; font-weight: 700; color: #6b7280;">disciplinas</div>
+                </div>
+                <div style="font-size: 0.9em; color: #374151; margin-top: 5px;">({alunos_b1} alunos)</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col_gen4:
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
+                <h3 style="color: #374151; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Falta 2º Bimestre</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 2.2em; font-weight: 700; color: #374151;">{total_b2}</div>
+                    <div style="font-size: 1.8em; font-weight: 700; color: #6b7280;">disciplinas</div>
+                </div>
+                <div style="font-size: 0.9em; color: #374151; margin-top: 5px;">({alunos_b2} alunos)</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Tabela geral de incompletos
+        st.markdown("### 📋 Todos os Incompletos")
+        incompletos_ordenados = incompletos.sort_values(["Turma", coluna_aluno, "Disciplina"])
+        
+        # Formatar colunas numéricas
+        for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
+            if c in incompletos_ordenados.columns:
+                incompletos_ordenados[c] = incompletos_ordenados[c].round(1)
+                incompletos_ordenados[c] = incompletos_ordenados[c].apply(lambda x: f"{x:.1f}".rstrip('0').rstrip('.') if pd.notna(x) else x)
+        
+        # Adicionar coluna indicando qual bimestre falta
+        incompletos_ordenados["Falta"] = incompletos_ordenados.apply(
+            lambda row: "1º Bimestre" if pd.isna(row["N1"]) else "2º Bimestre", axis=1
+        )
+        
+        cols_incompletos_geral = [coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Falta", "Classificacao"]
+        styled_incompletos_geral = incompletos_ordenados[cols_incompletos_geral].style.applymap(color_classification, subset=["Classificacao"])
+        st.dataframe(styled_incompletos_geral, use_container_width=True)
+        
+        # Botão de exportação geral
+        col_export_gen1, col_export_gen2 = st.columns([1, 4])
+        with col_export_gen1:
+            if st.button("📋 Exportar Todos", key="export_incompletos_geral", help="Baixar planilha com todos os incompletos"):
+                excel_data = criar_excel_formatado(incompletos_ordenados[cols_incompletos_geral], "Todos_Incompletos")
+                st.download_button(
+                    label="Baixar Excel",
+                    data=excel_data,
+                    file_name="todos_incompletos.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+    
+    with tab2:
+        # Aba do 1º Bimestre
+        st.markdown("### 1️⃣ Incompletos do 1º Bimestre (Falta N1)")
+        
+        if len(incompletos_b1) > 0:
+            # Estatísticas específicas do 1º bimestre
+            col_b1_1, col_b1_2 = st.columns(2)
+            
+            with col_b1_1:
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
+                    <h3 style="color: #374151; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Disciplinas Incompletas</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 2.5em; font-weight: 700; color: #374151;">{total_b1}</div>
+                        <div style="font-size: 2.5em; font-weight: 700; color: #6b7280;">disciplinas</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_b1_2:
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
+                    <h3 style="color: #374151; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Alunos Afetados</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 2.5em; font-weight: 700; color: #374151;">{alunos_b1}</div>
+                        <div style="font-size: 2.5em; font-weight: 700; color: #6b7280;">alunos</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Ordenar e formatar dados do 1º bimestre
+            incompletos_b1_ordenados = incompletos_b1.sort_values(["Turma", coluna_aluno, "Disciplina"])
+            
+            # Formatar colunas numéricas
+            for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
+                if c in incompletos_b1_ordenados.columns:
+                    incompletos_b1_ordenados[c] = incompletos_b1_ordenados[c].round(1)
+                    incompletos_b1_ordenados[c] = incompletos_b1_ordenados[c].apply(lambda x: f"{x:.1f}".rstrip('0').rstrip('.') if pd.notna(x) else x)
+            
+            # Mostrar tabela do 1º bimestre
+            cols_incompletos_b1 = [coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao"]
+            styled_incompletos_b1 = incompletos_b1_ordenados[cols_incompletos_b1].style.applymap(color_classification, subset=["Classificacao"])
+            st.dataframe(styled_incompletos_b1, use_container_width=True)
+            
+            # Botão de exportação do 1º bimestre
+            col_export_b1_1, col_export_b1_2 = st.columns([1, 4])
+            with col_export_b1_1:
+                if st.button("📋 Exportar 1º Bimestre", key="export_incompletos_b1", help="Baixar planilha com incompletos do 1º bimestre"):
+                    excel_data = criar_excel_formatado(incompletos_b1_ordenados[cols_incompletos_b1], "Incompletos_1_Bimestre")
+                    st.download_button(
+                        label="Baixar Excel",
+                        data=excel_data,
+                        file_name="incompletos_1_bimestre.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+        else:
+            st.success("✅ Nenhum aluno com notas incompletas do 1º bimestre.")
+    
+    with tab3:
+        # Aba do 2º Bimestre
+        st.markdown("### 2️⃣ Incompletos do 2º Bimestre (Falta N2)")
+        
+        if len(incompletos_b2) > 0:
+            # Estatísticas específicas do 2º bimestre
+            col_b2_1, col_b2_2 = st.columns(2)
+            
+            with col_b2_1:
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
+                    <h3 style="color: #374151; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Disciplinas Incompletas</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 2.5em; font-weight: 700; color: #374151;">{total_b2}</div>
+                        <div style="font-size: 2.5em; font-weight: 700; color: #6b7280;">disciplinas</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_b2_2:
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
+                    <h3 style="color: #374151; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Alunos Afetados</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 2.5em; font-weight: 700; color: #374151;">{alunos_b2}</div>
+                        <div style="font-size: 2.5em; font-weight: 700; color: #6b7280;">alunos</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Ordenar e formatar dados do 2º bimestre
+            incompletos_b2_ordenados = incompletos_b2.sort_values(["Turma", coluna_aluno, "Disciplina"])
+            
+            # Formatar colunas numéricas
+            for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
+                if c in incompletos_b2_ordenados.columns:
+                    incompletos_b2_ordenados[c] = incompletos_b2_ordenados[c].round(1)
+                    incompletos_b2_ordenados[c] = incompletos_b2_ordenados[c].apply(lambda x: f"{x:.1f}".rstrip('0').rstrip('.') if pd.notna(x) else x)
+            
+            # Mostrar tabela do 2º bimestre
+            cols_incompletos_b2 = [coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao"]
+            styled_incompletos_b2 = incompletos_b2_ordenados[cols_incompletos_b2].style.applymap(color_classification, subset=["Classificacao"])
+            st.dataframe(styled_incompletos_b2, use_container_width=True)
+            
+            # Botão de exportação do 2º bimestre
+            col_export_b2_1, col_export_b2_2 = st.columns([1, 4])
+            with col_export_b2_1:
+                if st.button("📋 Exportar 2º Bimestre", key="export_incompletos_b2", help="Baixar planilha com incompletos do 2º bimestre"):
+                    excel_data = criar_excel_formatado(incompletos_b2_ordenados[cols_incompletos_b2], "Incompletos_2_Bimestre")
+                    st.download_button(
+                        label="Baixar Excel",
+                        data=excel_data,
+                        file_name="incompletos_2_bimestre.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+        else:
+            st.success("✅ Nenhum aluno com notas incompletas do 2º bimestre.")
+
+else:
+    st.info("✅ Nenhum aluno com disciplinas incompletas encontrado.")
+
+# Seção Consolidada: Resumo por Bimestres
+st.markdown("""
+<div style="background: linear-gradient(135deg, #7c3aed, #a855f7); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(124, 58, 237, 0.2);">
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">📊 Resumo dos Problemas por Bimestre</h2>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Estudantes únicos com problemas por período</p>
+</div>
+""", unsafe_allow_html=True)
+
+# Calcular estudantes únicos por bimestre
+alunos_notas_baixas_b1_unicos = set()
+alunos_notas_baixas_b2_unicos = set()
+
+if len(notas_baixas_b1) > 0:
+    alunos_notas_baixas_b1_unicos = set(notas_baixas_b1[coluna_aluno].unique())
+if len(notas_baixas_b2) > 0:
+    alunos_notas_baixas_b2_unicos = set(notas_baixas_b2[coluna_aluno].unique())
+
+alunos_incompletos_b1_unicos = set()
+alunos_incompletos_b2_unicos = set()
+
+if len(incompletos) > 0:
+    if len(incompletos_b1) > 0:
+        alunos_incompletos_b1_unicos = set(incompletos_b1[coluna_aluno].unique())
+    if len(incompletos_b2) > 0:
+        alunos_incompletos_b2_unicos = set(incompletos_b2[coluna_aluno].unique())
+
+# Criar seção por bimestres
+st.markdown("### 📋 Resumo por Bimestre")
+
+col_bim1, col_bim2 = st.columns(2)
+
+with col_bim1:
+    st.markdown("#### 1º Bimestre")
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 8px; padding: 15px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #374151; font-weight: 600;">Notas Baixas:</span>
+            <span style="color: #374151; font-weight: 700; font-size: 1.2em;">{len(alunos_notas_baixas_b1_unicos)} alunos</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+            <span style="color: #374151; font-weight: 600;">Incompletos:</span>
+            <span style="color: #374151; font-weight: 700; font-size: 1.2em;">{len(alunos_incompletos_b1_unicos)} alunos</span>
+        </div>
+        <div style="border-top: 1px solid #d1d5db; margin-top: 10px; padding-top: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #374151; font-weight: 700;">Total 1º Bimestre:</span>
+                <div style="text-align: right;">
+                    <span style="color: #374151; font-weight: 700; font-size: 1.3em;">{len(alunos_notas_baixas_b1_unicos) + len(alunos_incompletos_b1_unicos)} alunos</span>
+                    <div style="color: #6b7280; font-size: 0.9em; font-weight: 600;">
+                        ({((len(alunos_notas_baixas_b1_unicos) + len(alunos_incompletos_b1_unicos)) / df_filt[coluna_aluno].nunique() * 100):.1f}% do total)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_bim2:
+    st.markdown("#### 2º Bimestre")
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 8px; padding: 15px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #374151; font-weight: 600;">Notas Baixas:</span>
+            <span style="color: #374151; font-weight: 700; font-size: 1.2em;">{len(alunos_notas_baixas_b2_unicos)} alunos</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+            <span style="color: #374151; font-weight: 600;">Incompletos:</span>
+            <span style="color: #374151; font-weight: 700; font-size: 1.2em;">{len(alunos_incompletos_b2_unicos)} alunos</span>
+        </div>
+        <div style="border-top: 1px solid #d1d5db; margin-top: 10px; padding-top: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #374151; font-weight: 700;">Total 2º Bimestre:</span>
+                <div style="text-align: right;">
+                    <span style="color: #374151; font-weight: 700; font-size: 1.3em;">{len(alunos_notas_baixas_b2_unicos) + len(alunos_incompletos_b2_unicos)} alunos</span>
+                    <div style="color: #6b7280; font-size: 0.9em; font-weight: 600;">
+                        ({((len(alunos_notas_baixas_b2_unicos) + len(alunos_incompletos_b2_unicos)) / df_filt[coluna_aluno].nunique() * 100):.1f}% do total)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 # Tabela: Panorama Geral de Notas (todos para diagnóstico rápido)
 st.markdown("""
 <div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
@@ -1949,8 +2308,8 @@ for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
 
 
 # Aplicar estilização
-styled_table = tab_diag[["Aluno", "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]]\
-    .sort_values(["Turma", "Aluno", "Disciplina"])\
+styled_table = tab_diag[[coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]]\
+    .sort_values(["Turma", coluna_aluno, "Disciplina"])\
     .style.applymap(color_classification, subset=["Classificacao"])
 
 st.dataframe(styled_table, use_container_width=True)
@@ -1959,7 +2318,7 @@ st.dataframe(styled_table, use_container_width=True)
 col_export3, col_export4 = st.columns([1, 4])
 with col_export3:
         if st.button("📊 Exportar Panorama", key="export_panorama", help="Baixar planilha com panorama geral de notas"):
-            excel_data = criar_excel_formatado(tab_diag[["Aluno", "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]], "Panorama_Geral_Notas")
+            excel_data = criar_excel_formatado(tab_diag[[coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]], "Panorama_Geral_Notas")
             st.download_button(
                 label="Baixar Excel",
                 data=excel_data,
@@ -2005,56 +2364,154 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# Seção de Gráficos de Notas por Disciplina
+st.markdown("### 📊 Gráficos de Notas Abaixo da Média por Disciplina")
+
+# Gráfico Geral (1º + 2º Bimestre)
+with st.expander("📈 Geral - Notas Abaixo da Média por Disciplina (1º + 2º Bimestre)"):
+    base_baixas = pd.concat([notas_baixas_b1, notas_baixas_b2], ignore_index=True)
+    if len(base_baixas) > 0:
+        # Contar notas por disciplina
+        contagem = base_baixas.groupby("Disciplina")["Nota"].count().reset_index()
+        contagem = contagem.rename(columns={"Nota": "Qtd Notas < 6"})
+        
+        # Ordenar em ordem decrescente (maior para menor)
+        contagem = contagem.sort_values("Qtd Notas < 6", ascending=False).reset_index(drop=True)
+        
+        # Adicionar coluna de cores intercaladas baseada na posição após ordenação
+        contagem['Cor'] = ['#1e40af' if i % 2 == 0 else '#059669' for i in range(len(contagem))]
+        
+        fig = px.bar(contagem, x="Disciplina", y="Qtd Notas < 6", 
+                    title="Notas abaixo da média (1º + 2º Bimestre)",
+                    color="Cor",
+                    color_discrete_map={'#1e40af': '#1e40af', '#059669': '#059669'})
+        
+        # Forçar a ordem das disciplinas no eixo X
+        fig.update_layout(
+            xaxis_title=None, 
+            yaxis_title="Quantidade", 
+            bargap=0.25, 
+            showlegend=False, 
+            xaxis_tickangle=45,
+            xaxis={'categoryorder': 'array', 'categoryarray': contagem['Disciplina'].tolist()}
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Botão de exportação para dados do gráfico
+        col_export_graf1, col_export_graf2 = st.columns([1, 4])
+        with col_export_graf1:
+            if st.button("📊 Exportar Dados do Gráfico", key="export_grafico_notas_geral", help="Baixar planilha com dados do gráfico geral"):
+                # Preparar dados para exportação (remover coluna de cor)
+                dados_export = contagem[['Disciplina', 'Qtd Notas < 6']].copy()
+                dados_export = dados_export.rename(columns={'Qtd Notas < 6': 'Quantidade_Notas_Abaixo_6'})
+                
+                excel_data = criar_excel_formatado(dados_export, "Notas_Por_Disciplina_Geral")
+                st.download_button(
+                    label="Baixar Excel",
+                    data=excel_data,
+                    file_name="notas_por_disciplina_geral.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+    else:
+        st.info("Sem notas abaixo da média para os filtros atuais.")
+
+# Gráficos separados por bimestre
 col_graf1, col_graf2 = st.columns(2)
 
-# Gráfico: Notas abaixo de 6 por Disciplina (1º e 2º bimestres)
+# Gráfico 1º Bimestre
 with col_graf1:
-    with st.expander("Notas Abaixo da Média por Disciplina"):
-        base_baixas = pd.concat([notas_baixas_b1, notas_baixas_b2], ignore_index=True)
-        if len(base_baixas) > 0:
-            # Contar notas por disciplina
-            contagem = base_baixas.groupby("Disciplina")["Nota"].count().reset_index()
-            contagem = contagem.rename(columns={"Nota": "Qtd Notas < 6"})
+    with st.expander("📊 1º Bimestre - Notas Abaixo da Média por Disciplina"):
+        if len(notas_baixas_b1) > 0:
+            # Contar notas por disciplina no 1º bimestre
+            contagem_b1 = notas_baixas_b1.groupby("Disciplina")["Nota"].count().reset_index()
+            contagem_b1 = contagem_b1.rename(columns={"Nota": "Qtd Notas < 6"})
             
             # Ordenar em ordem decrescente (maior para menor)
-            contagem = contagem.sort_values("Qtd Notas < 6", ascending=False).reset_index(drop=True)
+            contagem_b1 = contagem_b1.sort_values("Qtd Notas < 6", ascending=False).reset_index(drop=True)
             
             # Adicionar coluna de cores intercaladas baseada na posição após ordenação
-            contagem['Cor'] = ['#1e40af' if i % 2 == 0 else '#059669' for i in range(len(contagem))]
+            contagem_b1['Cor'] = ['#dc2626' if i % 2 == 0 else '#ea580c' for i in range(len(contagem_b1))]
             
-            fig = px.bar(contagem, x="Disciplina", y="Qtd Notas < 6", 
-                        title="Notas abaixo da média (1º + 2º Bimestre)",
-                        color="Cor",
-                        color_discrete_map={'#1e40af': '#1e40af', '#059669': '#059669'})
+            fig_b1 = px.bar(contagem_b1, x="Disciplina", y="Qtd Notas < 6", 
+                           title="Notas abaixo da média - 1º Bimestre",
+                           color="Cor",
+                           color_discrete_map={'#dc2626': '#dc2626', '#ea580c': '#ea580c'})
             
             # Forçar a ordem das disciplinas no eixo X
-            fig.update_layout(
+            fig_b1.update_layout(
                 xaxis_title=None, 
                 yaxis_title="Quantidade", 
                 bargap=0.25, 
                 showlegend=False, 
                 xaxis_tickangle=45,
-                xaxis={'categoryorder': 'array', 'categoryarray': contagem['Disciplina'].tolist()}
+                xaxis={'categoryorder': 'array', 'categoryarray': contagem_b1['Disciplina'].tolist()}
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig_b1, use_container_width=True)
             
-            # Botão de exportação para dados do gráfico
-            col_export_graf1, col_export_graf2 = st.columns([1, 4])
-            with col_export_graf1:
-                if st.button("📊 Exportar Dados do Gráfico", key="export_grafico_notas", help="Baixar planilha com dados do gráfico de notas por disciplina"):
-                    # Preparar dados para exportação (remover coluna de cor)
-                    dados_export = contagem[['Disciplina', 'Qtd Notas < 6']].copy()
-                    dados_export = dados_export.rename(columns={'Qtd Notas < 6': 'Quantidade_Notas_Abaixo_6'})
-                    
-                    excel_data = criar_excel_formatado(dados_export, "Notas_Por_Disciplina")
-                    st.download_button(
-                        label="Baixar Excel",
-                        data=excel_data,
-                        file_name="notas_por_disciplina.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+            # Botão de exportação para dados do gráfico 1º bimestre
+            if st.button("📊 Exportar 1º Bimestre", key="export_grafico_notas_b1", help="Baixar planilha com dados do 1º bimestre"):
+                # Preparar dados para exportação (remover coluna de cor)
+                dados_export_b1 = contagem_b1[['Disciplina', 'Qtd Notas < 6']].copy()
+                dados_export_b1 = dados_export_b1.rename(columns={'Qtd Notas < 6': 'Quantidade_Notas_Abaixo_6'})
+                
+                excel_data = criar_excel_formatado(dados_export_b1, "Notas_Por_Disciplina_B1")
+                st.download_button(
+                    label="Baixar Excel",
+                    data=excel_data,
+                    file_name="notas_por_disciplina_1bimestre.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
         else:
-            st.info("Sem notas abaixo da média para os filtros atuais.")
+            st.info("Sem notas abaixo da média no 1º bimestre para os filtros atuais.")
+
+# Gráfico 2º Bimestre
+with col_graf2:
+    with st.expander("📊 2º Bimestre - Notas Abaixo da Média por Disciplina"):
+        if len(notas_baixas_b2) > 0:
+            # Contar notas por disciplina no 2º bimestre
+            contagem_b2 = notas_baixas_b2.groupby("Disciplina")["Nota"].count().reset_index()
+            contagem_b2 = contagem_b2.rename(columns={"Nota": "Qtd Notas < 6"})
+            
+            # Ordenar em ordem decrescente (maior para menor)
+            contagem_b2 = contagem_b2.sort_values("Qtd Notas < 6", ascending=False).reset_index(drop=True)
+            
+            # Adicionar coluna de cores intercaladas baseada na posição após ordenação
+            contagem_b2['Cor'] = ['#7c3aed' if i % 2 == 0 else '#a855f7' for i in range(len(contagem_b2))]
+            
+            fig_b2 = px.bar(contagem_b2, x="Disciplina", y="Qtd Notas < 6", 
+                           title="Notas abaixo da média - 2º Bimestre",
+                           color="Cor",
+                           color_discrete_map={'#7c3aed': '#7c3aed', '#a855f7': '#a855f7'})
+            
+            # Forçar a ordem das disciplinas no eixo X
+            fig_b2.update_layout(
+                xaxis_title=None, 
+                yaxis_title="Quantidade", 
+                bargap=0.25, 
+                showlegend=False, 
+                xaxis_tickangle=45,
+                xaxis={'categoryorder': 'array', 'categoryarray': contagem_b2['Disciplina'].tolist()}
+            )
+            st.plotly_chart(fig_b2, use_container_width=True)
+            
+            # Botão de exportação para dados do gráfico 2º bimestre
+            if st.button("📊 Exportar 2º Bimestre", key="export_grafico_notas_b2", help="Baixar planilha com dados do 2º bimestre"):
+                # Preparar dados para exportação (remover coluna de cor)
+                dados_export_b2 = contagem_b2[['Disciplina', 'Qtd Notas < 6']].copy()
+                dados_export_b2 = dados_export_b2.rename(columns={'Qtd Notas < 6': 'Quantidade_Notas_Abaixo_6'})
+                
+                excel_data = criar_excel_formatado(dados_export_b2, "Notas_Por_Disciplina_B2")
+                st.download_button(
+                    label="Baixar Excel",
+                    data=excel_data,
+                    file_name="notas_por_disciplina_2bimestre.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        else:
+            st.info("Sem notas abaixo da média no 2º bimestre para os filtros atuais.")
+
+# Gráfico: Distribuição de Frequência por Faixas
+col_graf1, col_graf2 = st.columns(2)
 
 # Gráfico: Distribuição de Frequência por Faixas
 with col_graf2:
@@ -2062,10 +2519,10 @@ with col_graf2:
         if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
             # Usar os mesmos dados do Resumo de Frequência
             if "Frequencia Anual" in df_filt.columns:
-                freq_geral = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
+                freq_geral = df_filt.groupby([coluna_aluno, "Turma"])["Frequencia Anual"].last().reset_index()
                 freq_geral = freq_geral.rename(columns={"Frequencia Anual": "Frequencia"})
             else:
-                freq_geral = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
+                freq_geral = df_filt.groupby([coluna_aluno, "Turma"])["Frequencia"].last().reset_index()
             
             freq_geral["Classificacao_Freq"] = freq_geral["Frequencia"].apply(classificar_frequencia_geral)
             contagem_freq_geral = freq_geral["Classificacao_Freq"].value_counts()
@@ -2147,14 +2604,14 @@ with st.expander("Análise Cruzada: Notas x Frequência"):
     if ("Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns) and len(indic) > 0:
         # Combinar dados de notas e frequência (priorizando Frequencia Anual)
         if "Frequencia Anual" in df_filt.columns:
-            freq_alunos = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
+            freq_alunos = df_filt.groupby([coluna_aluno, "Turma"])["Frequencia Anual"].last().reset_index()
             freq_alunos = freq_alunos.rename(columns={"Frequencia Anual": "Frequencia"})
         else:
-            freq_alunos = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
+            freq_alunos = df_filt.groupby([coluna_aluno, "Turma"])["Frequencia"].last().reset_index()
         freq_alunos["Classificacao_Freq"] = freq_alunos["Frequencia"].apply(classificar_frequencia)
         
         # Merge com indicadores de notas
-        cruzada = indic.merge(freq_alunos, on=["Aluno", "Turma"], how="left")
+        cruzada = indic.merge(freq_alunos, on=[coluna_aluno, "Turma"], how="left")
         
         # Criar matriz de cruzamento
         matriz_cruzada = cruzada.groupby(["Classificacao", "Classificacao_Freq"]).size().unstack(fill_value=0)
@@ -2169,7 +2626,7 @@ with st.expander("Análise Cruzada: Notas x Frequência"):
             if len(freq_baixa) > 0:
                 st.markdown("### Alunos com Frequência Abaixo de 95% (Cruzamento Notas x Frequência)")
                 # Mostrar apenas colunas relevantes para frequência baixa
-                freq_baixa_display = freq_baixa[["Aluno", "Turma", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
+                freq_baixa_display = freq_baixa[[coluna_aluno, "Turma", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
                 # Formatar frequência
                 freq_baixa_display["Frequencia"] = freq_baixa_display["Frequencia"].apply(
                     lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
@@ -2215,22 +2672,22 @@ with col_export_all1:
                 tabela_alerta[cols_visiveis].to_excel(writer, sheet_name="Alunos_em_Alerta", index=False)
             
             # Aba 2: Panorama Geral de Notas
-            tab_diag[["Aluno", "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]].to_excel(
+            tab_diag[[coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]].to_excel(
                 writer, sheet_name="Panorama_Geral_Notas", index=False)
             
             # Aba 3: Análise de Frequência (se disponível)
             if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
                 if "Frequencia Anual" in df_filt.columns:
-                    freq_detalhada = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
+                    freq_detalhada = df_filt.groupby([coluna_aluno, "Turma"])["Frequencia Anual"].last().reset_index()
                     freq_detalhada = freq_detalhada.rename(columns={"Frequencia Anual": "Frequencia"})
                 else:
-                    freq_detalhada = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
+                    freq_detalhada = df_filt.groupby([coluna_aluno, "Turma"])["Frequencia"].last().reset_index()
                 
                 freq_detalhada["Classificacao_Freq"] = freq_detalhada["Frequencia"].apply(classificar_frequencia)
                 freq_detalhada["Frequencia_Formatada"] = freq_detalhada["Frequencia"].apply(
                     lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
                 )
-                freq_detalhada[["Aluno", "Turma", "Frequencia_Formatada", "Classificacao_Freq"]].to_excel(
+                freq_detalhada[[coluna_aluno, "Turma", "Frequencia_Formatada", "Classificacao_Freq"]].to_excel(
                     writer, sheet_name="Analise_Frequencia", index=False)
             
             # Aba 4: Notas por Disciplina (se houver dados)
@@ -2244,10 +2701,10 @@ with col_export_all1:
             # Aba 5: Frequência por Faixas (se disponível)
             if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
                 if "Frequencia Anual" in df_filt.columns:
-                    freq_geral = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
+                    freq_geral = df_filt.groupby([coluna_aluno, "Turma"])["Frequencia Anual"].last().reset_index()
                     freq_geral = freq_geral.rename(columns={"Frequencia Anual": "Frequencia"})
                 else:
-                    freq_geral = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
+                    freq_geral = df_filt.groupby([coluna_aluno, "Turma"])["Frequencia"].last().reset_index()
                 
                 freq_geral["Classificacao_Freq"] = freq_geral["Frequencia"].apply(classificar_frequencia_geral)
                 contagem_freq_geral = freq_geral["Classificacao_Freq"].value_counts()
@@ -2267,24 +2724,24 @@ with col_export_all1:
             # Aba 6: Cruzamento Notas x Frequência (se disponível)
             if ("Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns) and len(indic) > 0:
                 if "Frequencia Anual" in df_filt.columns:
-                    freq_alunos = df_filt.groupby(["Aluno", "Turma"])["Frequencia Anual"].last().reset_index()
+                    freq_alunos = df_filt.groupby([coluna_aluno, "Turma"])["Frequencia Anual"].last().reset_index()
                     freq_alunos = freq_alunos.rename(columns={"Frequencia Anual": "Frequencia"})
                 else:
-                    freq_alunos = df_filt.groupby(["Aluno", "Turma"])["Frequencia"].last().reset_index()
+                    freq_alunos = df_filt.groupby([coluna_aluno, "Turma"])["Frequencia"].last().reset_index()
                 
                 freq_alunos["Classificacao_Freq"] = freq_alunos["Frequencia"].apply(classificar_frequencia)
-                cruzada = indic.merge(freq_alunos, on=["Aluno", "Turma"], how="left")
+                cruzada = indic.merge(freq_alunos, on=[coluna_aluno, "Turma"], how="left")
                 freq_baixa = cruzada[cruzada["Frequencia"] < 95]
                 
                 if len(freq_baixa) > 0:
-                    freq_baixa_display = freq_baixa[["Aluno", "Turma", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
+                    freq_baixa_display = freq_baixa[[coluna_aluno, "Turma", "Disciplina", "Classificacao", "Classificacao_Freq", "Frequencia"]].copy()
                     freq_baixa_display["Frequencia"] = freq_baixa_display["Frequencia"].apply(
                         lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
                     )
                     freq_baixa_display.to_excel(writer, sheet_name="Cruzamento_Notas_Freq", index=False)
             
             # Aba 7: Alunos Duplicados (se houver)
-            alunos_turmas = df_filt.groupby("Aluno")["Turma"].nunique().reset_index()
+            alunos_turmas = df_filt.groupby(coluna_aluno)["Turma"].nunique().reset_index()
             alunos_turmas = alunos_turmas.rename(columns={"Turma": "Qtd_Turmas"})
             alunos_duplicados = alunos_turmas[alunos_turmas["Qtd_Turmas"] > 1].copy()
             
@@ -2292,14 +2749,14 @@ with col_export_all1:
                 # Criar formato com colunas separadas para cada turma
                 export_data = []
                 for _, row in alunos_duplicados.iterrows():
-                    aluno = row["Aluno"]
+                    aluno = row[coluna_aluno]
                     qtd_turmas = row["Qtd_Turmas"]
-                    turmas_aluno = df_filt[df_filt["Aluno"] == aluno]["Turma"].unique().tolist()
+                    turmas_aluno = df_filt[df_filt[coluna_aluno] == aluno]["Turma"].unique().tolist()
                     turmas_aluno = sorted(turmas_aluno)
                     
                     # Criar linha com colunas separadas
                     linha = {
-                        "Aluno": aluno,
+                        coluna_aluno: aluno,
                         "Qtd_Turmas": qtd_turmas
                     }
                     
@@ -2315,7 +2772,7 @@ with col_export_all1:
                     export_data.append(linha)
                 
                 df_export = pd.DataFrame(export_data)
-                df_export = df_export.sort_values(["Qtd_Turmas", "Aluno"], ascending=[False, True])
+                df_export = df_export.sort_values(["Qtd_Turmas", coluna_aluno], ascending=[False, True])
                 df_export.to_excel(writer, sheet_name="Alunos_Duplicados", index=False)
         
         output.seek(0)
@@ -2336,7 +2793,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Identificar alunos em múltiplas turmas
-alunos_turmas = df_filt.groupby("Aluno")["Turma"].nunique().reset_index()
+alunos_turmas = df_filt.groupby(coluna_aluno)["Turma"].nunique().reset_index()
 alunos_turmas = alunos_turmas.rename(columns={"Turma": "Qtd_Turmas"})
 
 # Filtrar apenas alunos com mais de uma turma
@@ -2347,21 +2804,21 @@ if len(alunos_duplicados) > 0:
     alunos_detalhados = []
     
     for _, row in alunos_duplicados.iterrows():
-        aluno = row["Aluno"]
+        aluno = row[coluna_aluno]
         qtd_turmas = row["Qtd_Turmas"]
         
         # Obter todas as turmas deste aluno
-        turmas_aluno = df_filt[df_filt["Aluno"] == aluno]["Turma"].unique().tolist()
+        turmas_aluno = df_filt[df_filt[coluna_aluno] == aluno]["Turma"].unique().tolist()
         turmas_str = ", ".join(sorted(turmas_aluno))
         
         alunos_detalhados.append({
-            "Aluno": aluno,
+            coluna_aluno: aluno,
             "Qtd_Turmas": qtd_turmas,
             "Turmas": turmas_str
         })
     
     df_alunos_duplicados = pd.DataFrame(alunos_detalhados)
-    df_alunos_duplicados = df_alunos_duplicados.sort_values(["Qtd_Turmas", "Aluno"], ascending=[False, True])
+    df_alunos_duplicados = df_alunos_duplicados.sort_values(["Qtd_Turmas", coluna_aluno], ascending=[False, True])
     
     # Função para colorir quantidade de turmas
     def color_qtd_turmas(val):
@@ -2413,14 +2870,14 @@ if len(alunos_duplicados) > 0:
             # Criar formato com colunas separadas para cada turma
             export_data = []
             for _, row in df_alunos_duplicados.iterrows():
-                aluno = row["Aluno"]
+                aluno = row[coluna_aluno]
                 qtd_turmas = row["Qtd_Turmas"]
-                turmas_aluno = df_filt[df_filt["Aluno"] == aluno]["Turma"].unique().tolist()
+                turmas_aluno = df_filt[df_filt[coluna_aluno] == aluno]["Turma"].unique().tolist()
                 turmas_aluno = sorted(turmas_aluno)
                 
                 # Criar linha com colunas separadas
                 linha = {
-                    "Aluno": aluno,
+                    coluna_aluno: aluno,
                     "Qtd_Turmas": qtd_turmas
                 }
                 
@@ -2480,7 +2937,7 @@ else:
     # Mostrar estatística geral
     col_stats1, col_stats2 = st.columns(2)
     with col_stats1:
-        total_alunos_unicos = df_filt["Aluno"].nunique()
+        total_alunos_unicos = df_filt[coluna_aluno].nunique()
         st.metric("Total de Alunos Únicos", total_alunos_unicos, help="Número total de alunos únicos nos dados filtrados")
     
     with col_stats2:
