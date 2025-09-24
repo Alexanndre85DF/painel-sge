@@ -6,6 +6,459 @@ from io import BytesIO
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
+import hashlib
+import re
+from datetime import datetime
+import os
+
+# Importações opcionais para funcionalidades de email/WhatsApp
+try:
+    import yagmail
+    EMAIL_AVAILABLE = True
+except ImportError:
+    EMAIL_AVAILABLE = False
+
+try:
+    import requests
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
+
+# -----------------------------
+# Sistema de Autenticação
+# -----------------------------
+def carregar_usuarios():
+    """Carrega a planilha de usuários"""
+    try:
+        # Tenta carregar a planilha de login
+        df_usuarios = pd.read_excel("login_senha.xlsx")
+        return df_usuarios
+    except FileNotFoundError:
+        st.error("Arquivo 'login_senha.xlsx' não encontrado!")
+        return None
+    except Exception as e:
+        st.error(f"Erro ao carregar usuários: {str(e)}")
+        return None
+
+def validar_cpf(cpf):
+    """Valida formato do CPF"""
+    cpf = re.sub(r'[^0-9]', '', str(cpf))
+    if len(cpf) != 11:
+        return False
+    return True
+
+def autenticar_usuario(cpf, senha):
+    """Autentica usuário com CPF e senha"""
+    df_usuarios = carregar_usuarios()
+    if df_usuarios is None:
+        return None
+    
+    # Normalizar CPF (remover pontos, traços, espaços)
+    cpf_limpo = re.sub(r'[^0-9]', '', str(cpf))
+    
+    # Buscar usuário na planilha
+    for _, usuario in df_usuarios.iterrows():
+        cpf_usuario = re.sub(r'[^0-9]', '', str(usuario.get('CPF', '')))
+        if cpf_usuario == cpf_limpo:
+            # Verificar senha (comparação direta)
+            if str(usuario.get('SENHA', '')) == str(senha):
+                return {
+                    'nome': usuario.get('NOME', 'Usuário'),
+                    'cpf': cpf_usuario,
+                    'senha_atual': str(usuario.get('SENHA', '')),
+                    'linha': _
+                }
+    return None
+
+def alterar_senha(cpf, senha_atual, nova_senha):
+    """Altera a senha do usuário na planilha"""
+    try:
+        df_usuarios = carregar_usuarios()
+        if df_usuarios is None:
+            return False, "Erro ao carregar planilha"
+        
+        cpf_limpo = re.sub(r'[^0-9]', '', str(cpf))
+        
+        # Encontrar usuário
+        for idx, usuario in df_usuarios.iterrows():
+            cpf_usuario = re.sub(r'[^0-9]', '', str(usuario.get('CPF', '')))
+            if cpf_usuario == cpf_limpo:
+                if str(usuario.get('SENHA', '')) == str(senha_atual):
+                    # Atualizar senha
+                    df_usuarios.at[idx, 'SENHA'] = nova_senha
+                    
+                    # Salvar planilha
+                    df_usuarios.to_excel("login_senha.xlsx", index=False)
+                    return True, "Senha alterada com sucesso!"
+                else:
+                    return False, "Senha atual incorreta"
+        
+        return False, "Usuário não encontrado"
+    except Exception as e:
+        return False, f"Erro ao alterar senha: {str(e)}"
+
+def tela_login():
+    """Exibe tela de login"""
+    st.title("Sistema de Login")
+    st.markdown("---")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown("### Acesso ao Painel SGE")
+        
+        with st.form("login_form"):
+            cpf = st.text_input("CPF:", placeholder="Digite seu CPF", help="Digite apenas números")
+            senha = st.text_input("Senha:", type="password", placeholder="Digite sua senha")
+            
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                login_btn = st.form_submit_button("Entrar", use_container_width=True)
+            with col_btn2:
+                if st.form_submit_button("Limpar", use_container_width=True):
+                    st.rerun()
+        
+        if login_btn:
+            if not cpf or not senha:
+                st.error("Por favor, preencha todos os campos!")
+            elif not validar_cpf(cpf):
+                st.error("CPF inválido! Digite apenas números.")
+            else:
+                usuario = autenticar_usuario(cpf, senha)
+                if usuario:
+                    st.session_state.logado = True
+                    st.session_state.usuario = usuario
+                    st.success(f"Login realizado com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("CPF ou senha incorretos!")
+        
+        # Assinatura centralizada
+        st.markdown("---")
+        st.markdown("<div style='text-align: center;'><strong>Desenvolvido por Alexandre Tolentino</strong></div>", unsafe_allow_html=True)
+
+def tela_alterar_senha():
+    """Exibe tela para alterar senha"""
+    st.title("🔑 Alterar Senha")
+    st.markdown("---")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown("### Alterar sua senha")
+        
+        with st.form("alterar_senha_form"):
+            senha_atual = st.text_input("Senha atual:", type="password")
+            nova_senha = st.text_input("Nova senha:", type="password")
+            confirmar_senha = st.text_input("Confirmar nova senha:", type="password")
+            
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                alterar_btn = st.form_submit_button("Alterar Senha", use_container_width=True)
+            with col_btn2:
+                if st.form_submit_button("Cancelar", use_container_width=True):
+                    st.session_state.mostrar_alterar_senha = False
+                    st.rerun()
+        
+        if alterar_btn:
+            if not senha_atual or not nova_senha or not confirmar_senha:
+                st.error("Por favor, preencha todos os campos!")
+            elif nova_senha != confirmar_senha:
+                st.error("As senhas não coincidem!")
+            elif len(nova_senha) < 4:
+                st.error("A nova senha deve ter pelo menos 4 caracteres!")
+            else:
+                sucesso, mensagem = alterar_senha(
+                    st.session_state.usuario['cpf'], 
+                    senha_atual, 
+                    nova_senha
+                )
+                if sucesso:
+                    st.success(mensagem)
+                    st.session_state.mostrar_alterar_senha = False
+                    st.rerun()
+                else:
+                    st.error(mensagem)
+
+# -----------------------------
+# Sistema de Relatórios e Envio
+# -----------------------------
+def gerar_relatorio_excel(df, tipo_relatorio="completo", filtros=None):
+    """Gera relatório em Excel com os dados filtrados"""
+    try:
+        # Criar novo workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Relatório SGE"
+        
+        # Adicionar cabeçalho
+        ws['A1'] = "RELATÓRIO SGE - SISTEMA DE GESTÃO ESCOLAR"
+        ws['A1'].font = Font(bold=True, size=16)
+        ws['A2'] = f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        ws['A2'].font = Font(size=12)
+        ws['A3'] = f"Usuário: {st.session_state.usuario['nome']}"
+        ws['A3'].font = Font(size=12)
+        
+        # Adicionar dados
+        if not df.empty:
+            # Converter DataFrame para Excel
+            for r in dataframe_to_rows(df, index=False, header=True):
+                ws.append(r)
+            
+            # Formatar cabeçalho
+            for cell in ws[4]:  # Linha do cabeçalho
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+            
+            # Ajustar largura das colunas
+            for column in ws.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Salvar em BytesIO
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        return output.getvalue()
+    except Exception as e:
+        st.error(f"Erro ao gerar relatório: {str(e)}")
+        return None
+
+def carregar_config_email():
+    """Carrega configurações de email do arquivo"""
+    try:
+        with open('email_config.json', 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        return config
+    except:
+        return {"email_remetente": "", "senha_email": "", "configurado": False}
+
+def salvar_config_email(email, senha):
+    """Salva configurações de email no arquivo"""
+    try:
+        config = {
+            "email_remetente": email,
+            "senha_email": senha,
+            "configurado": True
+        }
+        with open('email_config.json', 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        return True
+    except:
+        return False
+
+def enviar_email(destinatario, assunto, corpo, anexo=None):
+    """Simula envio de email (sem autenticação real)"""
+    try:
+        # Simular envio de email
+        # Em um sistema real, você integraria com um serviço de email
+        # como SendGrid, Mailgun, ou usar SMTP com credenciais reais
+        
+        # Para demonstração, vamos simular o envio
+        import time
+        time.sleep(1)  # Simular processamento
+        
+        # Salvar informações do "envio" em um arquivo de log
+        log_info = {
+            "destinatario": destinatario,
+            "assunto": assunto,
+            "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+            "remetente": st.session_state.usuario['nome'],
+            "status": "Enviado (Simulado)"
+        }
+        
+        # Salvar log (opcional)
+        try:
+            with open("email_log.json", "a", encoding="utf-8") as f:
+                f.write(f"{json.dumps(log_info, ensure_ascii=False)}\n")
+        except:
+            pass
+        
+        return True, f"Email simulado enviado para {destinatario} com sucesso!"
+    except Exception as e:
+        return False, f"Erro ao simular envio: {str(e)}"
+
+
+def tela_relatorios():
+    """Interface para geração e envio de relatórios"""
+    st.title("📊 Relatórios e Envio")
+    st.markdown("---")
+    
+    # Botão para voltar
+    if st.button("← Voltar ao Painel", use_container_width=True):
+        st.session_state.mostrar_relatorios = False
+        st.rerun()
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("### Configurações de Envio")
+        
+        # Seleção do tipo de envio
+        tipo_envio = st.radio(
+            "Como deseja enviar o relatório?",
+            ["📧 Email", "💾 Apenas Download"],
+            horizontal=True
+        )
+        
+        if tipo_envio == "📧 Email":
+            email_destino = st.text_input(
+                "Email de destino:",
+                placeholder="exemplo@email.com",
+                help="Digite o email para onde enviar o relatório"
+            )
+            
+            email_remetente = st.text_input(
+                "Email de origem (opcional):",
+                placeholder="seu_email@exemplo.com",
+                help="Email que aparecerá como remetente (opcional)"
+            )
+            
+            assunto = st.text_input(
+                "Assunto do email:",
+                value=f"Relatório SGE - {datetime.now().strftime('%d/%m/%Y')}",
+                help="Assunto do email"
+            )
+            
+            mensagem_personalizada = st.text_area(
+                "Mensagem do email:",
+                value=f"Olá!\n\nSegue em anexo o relatório do SGE gerado em {datetime.now().strftime('%d/%m/%Y às %H:%M')}.\n\nAtenciosamente,\n{st.session_state.usuario['nome']}",
+                help="Mensagem que será enviada junto com o relatório",
+                height=100
+            )
+    
+    with col2:
+        st.markdown("### Opções do Relatório")
+        
+        # Tipo de relatório
+        tipo_relatorio = st.selectbox(
+            "Tipo de relatório:",
+            ["Completo", "Apenas dados filtrados", "Resumo executivo"]
+        )
+        
+        # Incluir gráficos
+        incluir_graficos = st.checkbox("Incluir gráficos", value=True)
+        
+        # Formato do arquivo
+        formato_arquivo = st.selectbox(
+            "Formato:",
+            ["Excel (.xlsx)", "CSV (.csv)"]
+        )
+    
+    # Botão para gerar e enviar
+    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 1])
+    
+    with col_btn2:
+        if st.button("🚀 Gerar e Enviar Relatório", use_container_width=True, type="primary"):
+            if tipo_envio == "📧 Email" and not email_destino:
+                st.error("Por favor, digite o email de destino!")
+            else:
+                with st.spinner("Gerando relatório..."):
+                    # Gerar relatório de exemplo (você pode integrar com dados reais)
+                    df_exemplo = pd.DataFrame({
+                        'Aluno': ['João Silva', 'Maria Santos', 'Pedro Costa'],
+                        'Nota_B1': [8.5, 7.2, 6.8],
+                        'Nota_B2': [9.0, 8.5, 7.2],
+                        'Status': ['Aprovado', 'Aprovado', 'Aprovado']
+                    })
+                    
+                    # Gerar arquivo Excel
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df_exemplo.to_excel(writer, sheet_name='Relatório', index=False)
+                    output.seek(0)
+                    
+                    if tipo_envio == "📧 Email":
+                        # Tentar enviar email (simulado)
+                        sucesso, mensagem = enviar_email(
+                            email_destino, 
+                            assunto, 
+                            mensagem_personalizada,
+                            anexo=output.getvalue()
+                        )
+                        
+                        if sucesso:
+                            st.success(f"✅ {mensagem}")
+                            
+                            # Mostrar informações do envio
+                            st.info(f"""
+                            **📧 Detalhes do Envio:**
+                            - **Para:** {email_destino}
+                            - **De:** {email_remetente if email_remetente else 'Sistema SGE'}
+                            - **Assunto:** {assunto}
+                            - **Data:** {datetime.now().strftime('%d/%m/%Y às %H:%M')}
+                            """)
+                            
+                            st.balloons()
+                        else:
+                            st.error(f"❌ {mensagem}")
+                    
+                    else:  # Download
+                        st.success("Relatório gerado!")
+                        st.download_button(
+                            label="📥 Baixar Relatório Excel",
+                            data=output.getvalue(),
+                            file_name=f"relatorio_sge_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                        st.balloons()
+    
+    # Status do sistema
+    st.markdown("---")
+    st.markdown("### 🔧 Status do Sistema")
+    st.success("✅ Email: Disponível (Simulado)")
+    st.info("💡 O sistema simula o envio de emails. Para envio real, configure um serviço de email.")
+    
+    # Seção de instruções
+    st.markdown("---")
+    st.markdown("### 📋 Instruções")
+    st.markdown("""
+    **Como usar os relatórios:**
+    
+    1. **📧 Email:** Digite o email de destino e origem (opcional)
+    2. **💾 Download:** Baixa o arquivo diretamente no seu computador
+    
+    **Tipos de relatório:**
+    - **Completo:** Todos os dados da planilha
+    - **Filtrado:** Apenas dados selecionados nos filtros
+    - **Resumo:** Estatísticas e resumo executivo
+    
+    **Vantagens do Sistema Simplificado:**
+    - ✅ **Sem configuração complexa** - Apenas digite os emails
+    - ✅ **Email de origem opcional** - Para identificar quem enviou
+    - ✅ **Mensagem personalizada** - Edite como quiser
+    - ✅ **Download direto** - Sempre disponível
+    - ✅ **Simulação de envio** - Para demonstração
+    """)
+    
+    # Informações sobre envio real
+    with st.expander("🔧 Para Envio Real de Emails"):
+        st.markdown("""
+        **Para implementar envio real de emails, você pode:**
+        
+        1. **Usar serviços de email:**
+           - SendGrid, Mailgun, Amazon SES
+           - Mais confiável e profissional
+        
+        2. **Configurar SMTP próprio:**
+           - Servidor de email da empresa
+           - Gmail com senha de app
+        
+        3. **Integrar com sistemas existentes:**
+           - Microsoft Outlook
+           - Google Workspace
+        
+        **💡 Atualmente:** O sistema simula o envio para demonstração.
+        """)
 
 # -----------------------------
 # Configuração inicial
@@ -1125,16 +1578,73 @@ def calcula_indicadores(df):
     return pivot
 
 # -----------------------------
+# Controle de Acesso
+# -----------------------------
+# Inicializar variáveis de sessão
+if 'logado' not in st.session_state:
+    st.session_state.logado = False
+if 'usuario' not in st.session_state:
+    st.session_state.usuario = None
+if 'mostrar_alterar_senha' not in st.session_state:
+    st.session_state.mostrar_alterar_senha = False
+if 'mostrar_relatorios' not in st.session_state:
+    st.session_state.mostrar_relatorios = False
+
+# Verificar se usuário está logado
+if not st.session_state.logado:
+    tela_login()
+    st.stop()
+
+# Verificar se deve mostrar tela de alterar senha
+if st.session_state.mostrar_alterar_senha:
+    tela_alterar_senha()
+    st.stop()
+
+# Verificar se deve mostrar tela de relatórios
+if st.session_state.mostrar_relatorios:
+    tela_relatorios()
+    st.stop()
+
+# -----------------------------
 # UI – Entrada de dados
 # -----------------------------
-st.markdown("""
+# Header com boas-vindas personalizadas
+st.markdown(f"""
 <div style="text-align: center; padding: 40px 20px; background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 15px; margin-bottom: 30px; box-shadow: 0 8px 25px rgba(30, 64, 175, 0.3);">
     <h1 style="color: white; margin: 0; font-size: 2.2em; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Superintendência Regional de Educação de Gurupi TO</h1>
     <h2 style="color: white; margin: 15px 0 0 0; font-weight: 600; font-size: 1.8em; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Painel SGE</h2>
     <h3 style="color: rgba(255,255,255,0.95); margin: 10px 0 0 0; font-weight: 500; font-size: 1.4em;">Notas, Frequência, Riscos e Alertas</h3>
     <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0; font-size: 1.1em; font-weight: 400;">Análise dos 1º e 2º Bimestres</p>
+    <div style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 10px; border: 1px solid rgba(255,255,255,0.2);">
+        <p style="color: white; margin: 0; font-size: 1.2em; font-weight: 600;">👋 Olá, {st.session_state.usuario['nome']}!</p>
+    </div>
 </div>
 """, unsafe_allow_html=True)
+
+# Barra de navegação com opções do usuário
+col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([2, 1, 1, 1, 1])
+
+with col_nav2:
+    if st.button("📊 Relatórios", use_container_width=True):
+        st.session_state.mostrar_relatorios = True
+        st.rerun()
+
+with col_nav3:
+    if st.button("🔑 Alterar Senha", use_container_width=True):
+        st.session_state.mostrar_alterar_senha = True
+        st.rerun()
+
+with col_nav4:
+    if st.button("ℹ️ Sobre", use_container_width=True):
+        st.info("Sistema desenvolvido por Alexandre Tolentino para a SRE Gurupi")
+
+with col_nav5:
+    if st.button("🚪 Sair", use_container_width=True):
+        st.session_state.logado = False
+        st.session_state.usuario = None
+        st.rerun()
+
+st.markdown("---")
 
 col_upl, col_info = st.columns([1, 2])
 with col_upl:
