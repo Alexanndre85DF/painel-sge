@@ -11,6 +11,13 @@ import re
 from datetime import datetime
 import os
 
+# Carregar variáveis de ambiente
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv não instalado
+
 # Importações opcionais para funcionalidades de email/WhatsApp
 try:
     import yagmail
@@ -257,13 +264,74 @@ def salvar_config_email(email, senha):
         return False
 
 def enviar_email(destinatario, assunto, corpo, anexo=None):
-    """Simula envio de email (sem autenticação real)"""
+    """Envia email real com Gmail SMTP"""
     try:
-        # Simular envio de email
-        # Em um sistema real, você integraria com um serviço de email
-        # como SendGrid, Mailgun, ou usar SMTP com credenciais reais
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        from email.mime.base import MIMEBase
+        from email import encoders
+        import os
         
-        # Para demonstração, vamos simular o envio
+        # Configurações do Gmail (você precisa configurar)
+        gmail_user = os.getenv('GMAIL_USER', 'seu_email@gmail.com')
+        gmail_password = os.getenv('GMAIL_PASSWORD', 'sua_senha_app')
+        
+        # Se não tiver configuração, usar simulação
+        if gmail_user == 'seu_email@gmail.com' or not gmail_password:
+            return enviar_email_simulado(destinatario, assunto, corpo, anexo)
+        
+        # Criar mensagem
+        msg = MIMEMultipart()
+        msg['From'] = gmail_user
+        msg['To'] = destinatario
+        msg['Subject'] = assunto
+        
+        # Adicionar corpo do email
+        msg.attach(MIMEText(corpo, 'plain', 'utf-8'))
+        
+        # Adicionar anexo se existir
+        if anexo:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(anexo)
+            encoders.encode_base64(part)
+            part.add_header(
+                'Content-Disposition',
+                f'attachment; filename= relatorio_sge_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
+            )
+            msg.attach(part)
+        
+        # Enviar email
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(gmail_user, gmail_password)
+        text = msg.as_string()
+        server.sendmail(gmail_user, destinatario, text)
+        server.quit()
+        
+        # Salvar log
+        log_info = {
+            "destinatario": destinatario,
+            "assunto": assunto,
+            "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+            "remetente": st.session_state.usuario['nome'],
+            "status": "Enviado (Real)"
+        }
+        
+        try:
+            with open("email_log.json", "a", encoding="utf-8") as f:
+                f.write(f"{json.dumps(log_info, ensure_ascii=False)}\n")
+        except:
+            pass
+        
+        return True, f"Email enviado para {destinatario} com sucesso!"
+        
+    except Exception as e:
+        return False, f"Erro ao enviar email: {str(e)}"
+
+def enviar_email_simulado(destinatario, assunto, corpo, anexo=None):
+    """Simula envio de email (fallback)"""
+    try:
         import time
         time.sleep(1)  # Simular processamento
         
@@ -440,25 +508,52 @@ def tela_relatorios():
     - ✅ **Simulação de envio** - Para demonstração
     """)
     
-    # Informações sobre envio real
-    with st.expander("🔧 Para Envio Real de Emails"):
+    # Configuração de email real
+    with st.expander("🔧 Configuração de Email Real"):
+        st.markdown("### Configurar Gmail para Envio Real")
+        
         st.markdown("""
-        **Para implementar envio real de emails, você pode:**
-        
-        1. **Usar serviços de email:**
-           - SendGrid, Mailgun, Amazon SES
-           - Mais confiável e profissional
-        
-        2. **Configurar SMTP próprio:**
-           - Servidor de email da empresa
-           - Gmail com senha de app
-        
-        3. **Integrar com sistemas existentes:**
-           - Microsoft Outlook
-           - Google Workspace
-        
-        **💡 Atualmente:** O sistema simula o envio para demonstração.
+        **Para enviar emails reais, configure suas credenciais do Gmail:**
         """)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            **1. Ativar Senha de App no Gmail:**
+            - Acesse: https://myaccount.google.com/security
+            - Ative a "Verificação em duas etapas"
+            - Gere uma "Senha de app" para este sistema
+            """)
+        
+        with col2:
+            st.markdown("""
+            **2. Configurar Variáveis de Ambiente:**
+            - Crie um arquivo `.env` na pasta do projeto
+            - Adicione suas credenciais:
+            ```
+            GMAIL_USER=seu_email@gmail.com
+            GMAIL_PASSWORD=sua_senha_app
+            ```
+            """)
+        
+        st.markdown("""
+        **3. Instalar dependência:**
+        ```bash
+        pip install python-dotenv
+        ```
+        """)
+        
+        # Verificar se está configurado
+        import os
+        gmail_user = os.getenv('GMAIL_USER', 'não configurado')
+        gmail_password = os.getenv('GMAIL_PASSWORD', 'não configurado')
+        
+        if gmail_user != 'não configurado' and gmail_password != 'não configurado':
+            st.success("✅ Email configurado! Os emails serão enviados de verdade.")
+        else:
+            st.warning("⚠️ Email não configurado. Usando simulação.")
+            st.info("💡 Configure as variáveis de ambiente para envio real.")
 
 # -----------------------------
 # Configuração inicial
