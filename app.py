@@ -31,6 +31,22 @@ try:
 except ImportError:
     REQUESTS_AVAILABLE = False
 
+# Importações para sistema de monitoramento
+try:
+    from firebase_config import firebase_manager
+    from ip_utils import get_client_info
+    from admin_page import tela_admin, dashboard_admin, relatorio_completo, estatisticas_usuario
+    MONITORING_AVAILABLE = True
+    
+    # Inicializar Firebase se disponível
+    try:
+        firebase_manager.initialize()
+    except Exception as e:
+        print(f"Firebase não inicializado: {e}")
+        MONITORING_AVAILABLE = False
+except ImportError:
+    MONITORING_AVAILABLE = False
+
 # -----------------------------
 # Sistema de Autenticação
 # -----------------------------
@@ -54,42 +70,93 @@ def validar_cpf(cpf):
         return False
     return True
 
-def autenticar_usuario(cpf, senha):
-    """Autentica usuário com CPF e senha"""
+def _has_recent_access(usuario_nome):
+    """Verifica se o usuário já está logado (evita registros duplicados na mesma sessão)"""
+    try:
+        # Verificar se o usuário já está na sessão atual
+        # Se já está logado, não registrar novo acesso
+        if st.session_state.get('logado') and st.session_state.get('usuario', {}).get('nome') == usuario_nome:
+            return True
+        
+        return False
+        
+    except Exception as e:
+        print(f"Erro ao verificar acesso recente: {e}")
+        return False
+
+def autenticar_usuario(identificador, senha):
+    """Autentica usuário com CPF ou INEP e senha"""
     df_usuarios = carregar_usuarios()
     if df_usuarios is None:
         return None
     
-    # Normalizar CPF (remover pontos, traços, espaços)
-    cpf_limpo = re.sub(r'[^0-9]', '', str(cpf))
+    # Normalizar identificador (remover pontos, traços, espaços)
+    id_limpo = re.sub(r'[^0-9]', '', str(identificador))
     
     # Buscar usuário na planilha
     for _, usuario in df_usuarios.iterrows():
+        # Verificar CPF
         cpf_usuario = re.sub(r'[^0-9]', '', str(usuario.get('CPF', '')))
-        if cpf_usuario == cpf_limpo:
+        # Verificar INEP - tratar NaN e float
+        inep_valor = usuario.get('INEP', '')
+        if pd.isna(inep_valor) or inep_valor == '':
+            inep_usuario = ''
+        else:
+            # Converter float para int primeiro para remover o .0, depois para string
+            inep_str = str(int(float(inep_valor)))
+            inep_usuario = re.sub(r'[^0-9]', '', inep_str)
+        
+        # Comparar com CPF ou INEP
+        if (cpf_usuario and cpf_usuario == id_limpo) or (inep_usuario and inep_usuario == id_limpo):
             # Verificar senha (comparação direta)
             if str(usuario.get('SENHA', '')) == str(senha):
+                # Registrar acesso apenas no momento do login
+                if MONITORING_AVAILABLE:
+                    try:
+                        client_info = get_client_info()
+                        # Verificar se já existe um acesso recente (últimos 5 minutos) do mesmo usuário
+                        if not _has_recent_access(usuario.get('NOME', 'Usuário')):
+                            firebase_manager.log_access(
+                                usuario=usuario.get('NOME', 'Usuário'),
+                                ip=client_info['ip'],
+                                user_agent=client_info['user_agent']
+                            )
+                    except Exception as e:
+                        print(f"Erro ao registrar acesso: {e}")
+                
                 return {
                     'nome': usuario.get('NOME', 'Usuário'),
-                    'cpf': cpf_usuario,
+                    'cpf': cpf_usuario if cpf_usuario else None,
+                    'inep': inep_usuario if inep_usuario else None,
                     'senha_atual': str(usuario.get('SENHA', '')),
                     'linha': _
                 }
     return None
 
-def alterar_senha(cpf, senha_atual, nova_senha):
+def alterar_senha(identificador, senha_atual, nova_senha):
     """Altera a senha do usuário na planilha"""
     try:
         df_usuarios = carregar_usuarios()
         if df_usuarios is None:
             return False, "Erro ao carregar planilha"
         
-        cpf_limpo = re.sub(r'[^0-9]', '', str(cpf))
+        id_limpo = re.sub(r'[^0-9]', '', str(identificador))
         
         # Encontrar usuário
         for idx, usuario in df_usuarios.iterrows():
+            # Verificar CPF
             cpf_usuario = re.sub(r'[^0-9]', '', str(usuario.get('CPF', '')))
-            if cpf_usuario == cpf_limpo:
+            # Verificar INEP - tratar NaN e float
+            inep_valor = usuario.get('INEP', '')
+            if pd.isna(inep_valor) or inep_valor == '':
+                inep_usuario = ''
+            else:
+                # Converter float para int primeiro para remover o .0, depois para string
+                inep_str = str(int(float(inep_valor)))
+                inep_usuario = re.sub(r'[^0-9]', '', inep_str)
+            
+            # Comparar com CPF ou INEP
+            if (cpf_usuario and cpf_usuario == id_limpo) or (inep_usuario and inep_usuario == id_limpo):
                 if str(usuario.get('SENHA', '')) == str(senha_atual):
                     # Atualizar senha
                     df_usuarios.at[idx, 'SENHA'] = nova_senha
@@ -104,18 +171,217 @@ def alterar_senha(cpf, senha_atual, nova_senha):
     except Exception as e:
         return False, f"Erro ao alterar senha: {str(e)}"
 
+def tela_instrucoes():
+    """Exibe tela de instruções de uso do sistema"""
+    
+    # Header moderno
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%); 
+                color: white; padding: 2rem; border-radius: 15px; 
+                text-align: center; margin-bottom: 2rem; 
+                box-shadow: 0 8px 25px rgba(74, 144, 226, 0.15);">
+        <h1 style="margin: 0; font-size: 2.5rem; font-weight: 700; 
+                   text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+            Guia Completo de Uso
+        </h1>
+        <p style="font-size: 1.2rem; margin: 0.5rem 0 0 0; opacity: 0.9;">
+            Como analisar os dados da sua escola de forma eficiente
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Botão para voltar
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("Voltar ao Login", use_container_width=True, type="primary"):
+            st.session_state.mostrar_instrucoes = False
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # PASSO 1
+    st.markdown("### 📥 PASSO 1: Baixar Dados do SGE")
+    
+    st.markdown("""
+    **1.1 - Acesse o SGE:**
+    - Entre no sistema SGE da sua escola
+    - Faça login com suas credenciais
+    
+    **1.2 - Navegue até Relatórios:**
+    - No menu lateral, clique em "Relatórios"
+    - Selecione "Escola"
+    - Escolha "Ata/Mapa de rendimento"
+    
+    **1.3 - Configure o Relatório:**
+    - **Escola:** Selecione sua escola
+    - **Modelo:** Escolha "Conselho"
+    - **Tipo:** Selecione "Anual"
+    - **Ano Letivo:** Escolha o ano atual
+    - **1º Semestre:** Selecione o semestre desejado
+    - **Status:** Deixe em branco para incluir todos
+    
+    **1.4 - Baixe a Planilha:**
+    - Clique no botão "Exportar"
+    - Escolha "Excel"
+    - Salve o arquivo no seu computador
+    """)
+    
+    # PASSO 2
+    st.markdown("### 📤 PASSO 2: Carregar Dados no Painel")
+    
+    st.markdown("""
+    **2.1 - Faça Login:**
+    - Use seu CPF ou INEP da escola
+    - Digite sua senha
+    - Clique em "Entrar"
+    
+    **2.2 - Carregue a Planilha:**
+    - Na tela principal, clique em "Escolher arquivo"
+    - Selecione a planilha baixada do SGE
+    - Aguarde o carregamento dos dados
+    """)
+    
+    # PASSO 3
+    st.markdown("### ⚙️ PASSO 3: Configurar Filtros Obrigatórios")
+    
+    st.warning("⚠️ **IMPORTANTE: Filtros Obrigatórios** - Estes filtros são essenciais para análise correta!")
+    
+    st.markdown("""
+    **3.1 - Filtro de Escola:**
+    - No menu lateral, selecione sua escola
+    - Este filtro é obrigatório
+    
+    **3.2 - Filtro de Status:**
+    - Sempre selecione "Cursando"
+    - Este filtro é obrigatório para análise correta
+    - Desmarque outros status se aparecerem
+    """)
+    
+    # PASSO 4
+    st.markdown("### 🔍 PASSO 4: Filtros Opcionais")
+    
+    st.markdown("""
+    **4.1 - Por Disciplina:**
+    - Selecione disciplinas específicas
+    - Útil para análise de matérias problemáticas
+    
+    **4.2 - Por Turma:**
+    - Escolha turmas específicas
+    - Ideal para análise de classes individuais
+    
+    **4.3 - Por Aluno:**
+    - Selecione alunos específicos
+    - Para acompanhamento individual
+    """)
+    
+    # PASSO 5
+    st.markdown("### 📊 PASSO 5: Analisar os Dados")
+    
+    st.markdown("""
+    **5.1 - Visão Geral:**
+    - Veja o resumo geral da escola
+    - Métricas de aprovação e reprovação
+    - Indicadores de frequência
+    
+    **5.2 - Análise por Bimestre:**
+    - Compare 1º e 2º bimestres
+    - Identifique tendências de melhoria ou piora
+    
+    **5.3 - Alertas e Riscos:**
+    - Alunos em situação de risco
+    - Necessidade de intervenção pedagógica
+    
+    **5.4 - Gráficos e Visualizações:**
+    - Gráficos de notas por disciplina
+    - Análise de frequência
+    - Comparações entre turmas
+    """)
+    
+    # Dicas importantes
+    st.markdown("### 💡 Dicas Importantes")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        **Dados Obrigatórios:**
+        - Escola e Status "Cursando" são sempre necessários
+        - Sem esses filtros, a análise pode ficar incorreta
+        """)
+    
+    with col2:
+        st.markdown("""
+        **Interpretação dos Resultados:**
+        - Notas abaixo de 6 indicam necessidade de atenção
+        - Frequência abaixo de 75% é preocupante
+        - Alunos em "Corda Bamba" precisam de acompanhamento
+        """)
+    
+    # Problemas comuns
+    st.markdown("### ❓ Problemas Comuns")
+    
+    st.markdown("""
+    **Erro ao carregar planilha:**
+    - Verifique se o arquivo é do SGE
+    - Confirme se tem as colunas necessárias
+    - Tente salvar novamente no SGE
+    
+    **Dados não aparecem:**
+    - Verifique os filtros obrigatórios
+    - Confirme se selecionou "Cursando"
+    - Verifique se a escola está correta
+    
+    **Gráficos não carregam:**
+    - Aguarde o processamento dos dados
+    - Verifique se há dados suficientes
+    - Tente recarregar a página
+    """)
+    
+    # Assinatura
+    st.markdown("---")
+    st.markdown("<div style='text-align: center; padding: 2rem;'><strong style='color: #4a90e2; font-size: 1.1rem;'>Desenvolvido por Alexandre Tolentino</strong></div>", unsafe_allow_html=True)
+
 def tela_login():
     """Exibe tela de login"""
-    st.title("Sistema de Login")
+    # CSS para botão de instruções maior
+    st.markdown("""
+    <style>
+    .stButton > button[kind="primary"] {
+        background-color: #1f77b4;
+        color: white;
+        border: none;
+        border-radius: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        height: auto;
+        min-height: 3rem;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background-color: #0d5a8a;
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Botão de instruções no canto superior
+    col_inst, col_main, col_empty = st.columns([1, 2, 1])
+    
+    with col_inst:
+        if st.button("Instruções", use_container_width=True, help="Como usar o sistema", type="primary"):
+            st.session_state.mostrar_instrucoes = True
+            st.rerun()
+    
     st.markdown("---")
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
         st.markdown("### Acesso ao Painel SGE")
+        st.info("Aceita CPF (pessoas) ou INEP (escolas)")
         
         with st.form("login_form"):
-            cpf = st.text_input("CPF:", placeholder="Digite seu CPF", help="Digite apenas números")
+            identificador = st.text_input("CPF ou INEP:", placeholder="Digite seu CPF ou INEP da escola", help="Digite apenas números")
             senha = st.text_input("Senha:", type="password", placeholder="Digite sua senha")
             
             col_btn1, col_btn2 = st.columns(2)
@@ -126,19 +392,19 @@ def tela_login():
                     st.rerun()
         
         if login_btn:
-            if not cpf or not senha:
+            if not identificador or not senha:
                 st.error("Por favor, preencha todos os campos!")
-            elif not validar_cpf(cpf):
-                st.error("CPF inválido! Digite apenas números.")
+            elif len(re.sub(r'[^0-9]', '', identificador)) < 8:
+                st.error("CPF/INEP inválido! Digite pelo menos 8 números.")
             else:
-                usuario = autenticar_usuario(cpf, senha)
+                usuario = autenticar_usuario(identificador, senha)
                 if usuario:
                     st.session_state.logado = True
                     st.session_state.usuario = usuario
                     st.success(f"Login realizado com sucesso!")
                     st.rerun()
                 else:
-                    st.error("CPF ou senha incorretos!")
+                    st.error("CPF/INEP ou senha incorretos!")
         
         # Assinatura centralizada
         st.markdown("---")
@@ -175,8 +441,10 @@ def tela_alterar_senha():
             elif len(nova_senha) < 4:
                 st.error("A nova senha deve ter pelo menos 4 caracteres!")
             else:
+                # Usar CPF ou INEP dependendo do que estiver disponível
+                identificador = st.session_state.usuario.get('cpf') or st.session_state.usuario.get('inep')
                 sucesso, mensagem = alterar_senha(
-                    st.session_state.usuario['cpf'], 
+                    identificador, 
                     senha_atual, 
                     nova_senha
                 )
@@ -356,204 +624,6 @@ def enviar_email_simulado(destinatario, assunto, corpo, anexo=None):
         return False, f"Erro ao simular envio: {str(e)}"
 
 
-def tela_relatorios():
-    """Interface para geração e envio de relatórios"""
-    st.title("📊 Relatórios e Envio")
-    st.markdown("---")
-    
-    # Botão para voltar
-    if st.button("← Voltar ao Painel", use_container_width=True):
-        st.session_state.mostrar_relatorios = False
-        st.rerun()
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.markdown("### Configurações de Envio")
-        
-        # Seleção do tipo de envio
-        tipo_envio = st.radio(
-            "Como deseja enviar o relatório?",
-            ["📧 Email", "💾 Apenas Download"],
-            horizontal=True
-        )
-        
-        if tipo_envio == "📧 Email":
-            email_destino = st.text_input(
-                "Email de destino:",
-                placeholder="exemplo@email.com",
-                help="Digite o email para onde enviar o relatório"
-            )
-            
-            email_remetente = st.text_input(
-                "Email de origem (opcional):",
-                placeholder="seu_email@exemplo.com",
-                help="Email que aparecerá como remetente (opcional)"
-            )
-            
-            assunto = st.text_input(
-                "Assunto do email:",
-                value=f"Relatório SGE - {datetime.now().strftime('%d/%m/%Y')}",
-                help="Assunto do email"
-            )
-            
-            mensagem_personalizada = st.text_area(
-                "Mensagem do email:",
-                value=f"Olá!\n\nSegue em anexo o relatório do SGE gerado em {datetime.now().strftime('%d/%m/%Y às %H:%M')}.\n\nAtenciosamente,\n{st.session_state.usuario['nome']}",
-                help="Mensagem que será enviada junto com o relatório",
-                height=100
-            )
-    
-    with col2:
-        st.markdown("### Opções do Relatório")
-        
-        # Tipo de relatório
-        tipo_relatorio = st.selectbox(
-            "Tipo de relatório:",
-            ["Completo", "Apenas dados filtrados", "Resumo executivo"]
-        )
-        
-        # Incluir gráficos
-        incluir_graficos = st.checkbox("Incluir gráficos", value=True)
-        
-        # Formato do arquivo
-        formato_arquivo = st.selectbox(
-            "Formato:",
-            ["Excel (.xlsx)", "CSV (.csv)"]
-        )
-    
-    # Botão para gerar e enviar
-    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 1])
-    
-    with col_btn2:
-        if st.button("🚀 Gerar e Enviar Relatório", use_container_width=True, type="primary"):
-            if tipo_envio == "📧 Email" and not email_destino:
-                st.error("Por favor, digite o email de destino!")
-            else:
-                with st.spinner("Gerando relatório..."):
-                    # Gerar relatório de exemplo (você pode integrar com dados reais)
-                    df_exemplo = pd.DataFrame({
-                        'Aluno': ['João Silva', 'Maria Santos', 'Pedro Costa'],
-                        'Nota_B1': [8.5, 7.2, 6.8],
-                        'Nota_B2': [9.0, 8.5, 7.2],
-                        'Status': ['Aprovado', 'Aprovado', 'Aprovado']
-                    })
-                    
-                    # Gerar arquivo Excel
-                    output = BytesIO()
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        df_exemplo.to_excel(writer, sheet_name='Relatório', index=False)
-                    output.seek(0)
-                    
-                    if tipo_envio == "📧 Email":
-                        # Tentar enviar email (simulado)
-                        sucesso, mensagem = enviar_email(
-                            email_destino, 
-                            assunto, 
-                            mensagem_personalizada,
-                            anexo=output.getvalue()
-                        )
-                        
-                        if sucesso:
-                            st.success(f"✅ {mensagem}")
-                            
-                            # Mostrar informações do envio
-                            st.info(f"""
-                            **📧 Detalhes do Envio:**
-                            - **Para:** {email_destino}
-                            - **De:** {email_remetente if email_remetente else 'Sistema SGE'}
-                            - **Assunto:** {assunto}
-                            - **Data:** {datetime.now().strftime('%d/%m/%Y às %H:%M')}
-                            """)
-                            
-                            st.balloons()
-                        else:
-                            st.error(f"❌ {mensagem}")
-                    
-                    else:  # Download
-                        st.success("Relatório gerado!")
-                        st.download_button(
-                            label="📥 Baixar Relatório Excel",
-                            data=output.getvalue(),
-                            file_name=f"relatorio_sge_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
-                        st.balloons()
-    
-    # Status do sistema
-    st.markdown("---")
-    st.markdown("### 🔧 Status do Sistema")
-    st.success("✅ Email: Disponível (Simulado)")
-    st.info("💡 O sistema simula o envio de emails. Para envio real, configure um serviço de email.")
-    
-    # Seção de instruções
-    st.markdown("---")
-    st.markdown("### 📋 Instruções")
-    st.markdown("""
-    **Como usar os relatórios:**
-    
-    1. **📧 Email:** Digite o email de destino e origem (opcional)
-    2. **💾 Download:** Baixa o arquivo diretamente no seu computador
-    
-    **Tipos de relatório:**
-    - **Completo:** Todos os dados da planilha
-    - **Filtrado:** Apenas dados selecionados nos filtros
-    - **Resumo:** Estatísticas e resumo executivo
-    
-    **Vantagens do Sistema Simplificado:**
-    - ✅ **Sem configuração complexa** - Apenas digite os emails
-    - ✅ **Email de origem opcional** - Para identificar quem enviou
-    - ✅ **Mensagem personalizada** - Edite como quiser
-    - ✅ **Download direto** - Sempre disponível
-    - ✅ **Simulação de envio** - Para demonstração
-    """)
-    
-    # Configuração de email real
-    with st.expander("🔧 Configuração de Email Real"):
-        st.markdown("### Configurar Gmail para Envio Real")
-        
-        st.markdown("""
-        **Para enviar emails reais, configure suas credenciais do Gmail:**
-        """)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("""
-            **1. Ativar Senha de App no Gmail:**
-            - Acesse: https://myaccount.google.com/security
-            - Ative a "Verificação em duas etapas"
-            - Gere uma "Senha de app" para este sistema
-            """)
-        
-        with col2:
-            st.markdown("""
-            **2. Configurar Variáveis de Ambiente:**
-            - Crie um arquivo `.env` na pasta do projeto
-            - Adicione suas credenciais:
-            ```
-            GMAIL_USER=seu_email@gmail.com
-            GMAIL_PASSWORD=sua_senha_app
-            ```
-            """)
-        
-        st.markdown("""
-        **3. Instalar dependência:**
-        ```bash
-        pip install python-dotenv
-        ```
-        """)
-        
-        # Verificar se está configurado
-        import os
-        gmail_user = os.getenv('GMAIL_USER', 'não configurado')
-        gmail_password = os.getenv('GMAIL_PASSWORD', 'não configurado')
-        
-        if gmail_user != 'não configurado' and gmail_password != 'não configurado':
-            st.success("✅ Email configurado! Os emails serão enviados de verdade.")
-        else:
-            st.warning("⚠️ Email não configurado. Usando simulação.")
-            st.info("💡 Configure as variáveis de ambiente para envio real.")
 
 # -----------------------------
 # Configuração inicial
@@ -1682,8 +1752,21 @@ if 'usuario' not in st.session_state:
     st.session_state.usuario = None
 if 'mostrar_alterar_senha' not in st.session_state:
     st.session_state.mostrar_alterar_senha = False
-if 'mostrar_relatorios' not in st.session_state:
-    st.session_state.mostrar_relatorios = False
+if 'mostrar_instrucoes' not in st.session_state:
+    st.session_state.mostrar_instrucoes = False
+if 'mostrar_admin' not in st.session_state:
+    st.session_state.mostrar_admin = False
+if 'admin_logado' not in st.session_state:
+    st.session_state.admin_logado = False
+if 'mostrar_relatorio' not in st.session_state:
+    st.session_state.mostrar_relatorio = False
+if 'mostrar_stats_usuario' not in st.session_state:
+    st.session_state.mostrar_stats_usuario = False
+
+# Verificar se deve mostrar tela de instruções
+if st.session_state.mostrar_instrucoes:
+    tela_instrucoes()
+    st.stop()
 
 # Verificar se usuário está logado
 if not st.session_state.logado:
@@ -1695,10 +1778,35 @@ if st.session_state.mostrar_alterar_senha:
     tela_alterar_senha()
     st.stop()
 
-# Verificar se deve mostrar tela de relatórios
-if st.session_state.mostrar_relatorios:
-    tela_relatorios()
-    st.stop()
+# Verificar se deve mostrar área administrativa
+if st.session_state.mostrar_admin:
+    if MONITORING_AVAILABLE:
+        if not st.session_state.admin_logado:
+            tela_admin()
+            st.stop()
+        else:
+            # Verificar qual tela administrativa mostrar
+            if st.session_state.mostrar_relatorio:
+                relatorio_completo()
+                if st.button("⬅️ Voltar ao Dashboard"):
+                    st.session_state.mostrar_relatorio = False
+                    st.rerun()
+                st.stop()
+            elif st.session_state.mostrar_stats_usuario:
+                estatisticas_usuario()
+                if st.button("⬅️ Voltar ao Dashboard"):
+                    st.session_state.mostrar_stats_usuario = False
+                    st.rerun()
+                st.stop()
+            else:
+                dashboard_admin()
+                st.stop()
+    else:
+        st.error("Sistema de monitoramento não disponível. Verifique as dependências do Firebase.")
+        if st.button("⬅️ Voltar"):
+            st.session_state.mostrar_admin = False
+            st.rerun()
+        st.stop()
 
 # -----------------------------
 # UI – Entrada de dados
@@ -1720,21 +1828,33 @@ st.markdown(f"""
 col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([2, 1, 1, 1, 1])
 
 with col_nav2:
-    if st.button("📊 Relatórios", use_container_width=True):
-        st.session_state.mostrar_relatorios = True
-        st.rerun()
-
-with col_nav3:
     if st.button("🔑 Alterar Senha", use_container_width=True):
         st.session_state.mostrar_alterar_senha = True
         st.rerun()
 
-with col_nav4:
+with col_nav3:
     if st.button("ℹ️ Sobre", use_container_width=True):
         st.info("Sistema desenvolvido por Alexandre Tolentino para a SRE Gurupi")
 
+with col_nav4:
+    if MONITORING_AVAILABLE and st.button("🔐 Admin", use_container_width=True):
+        st.session_state.mostrar_admin = True
+        st.rerun()
+
 with col_nav5:
     if st.button("🚪 Sair", use_container_width=True):
+        # Registrar logout se disponível
+        if MONITORING_AVAILABLE and st.session_state.usuario:
+            try:
+                client_info = get_client_info()
+                firebase_manager.log_access(
+                    usuario=f"{st.session_state.usuario['nome']} (LOGOUT)",
+                    ip=client_info['ip'],
+                    user_agent=client_info['user_agent']
+                )
+            except Exception as e:
+                print(f"Erro ao registrar logout: {e}")
+        
         st.session_state.logado = False
         st.session_state.usuario = None
         st.rerun()

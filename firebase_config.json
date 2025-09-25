@@ -1,0 +1,9 @@
+{
+  "apiKey": "AIzaSyDjE_-iLBxTPnQAn90qc49sHF0pzLkea7c",
+  "authDomain": "painel-sge-monitoring.firebaseapp.com",
+  "databaseURL": "https://painel-sge-monitoring-default-rtdb.firebaseio.com",
+  "projectId": "painel-sge-monitoring",
+  "storageBucket": "painel-sge-monitoring.firebasestorage.app",
+  "messagingSenderId": "771571869815",
+  "appId": "1:771571869815:web:fb462aa6a587d22ec3fe72"
+}
