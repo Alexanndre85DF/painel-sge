@@ -242,6 +242,28 @@ class FirebaseManager:
             
         except Exception as e:
             print(f"Erro na sincronização: {e}")
+    
+    def clear_all_logs(self):
+        """Limpa todos os logs (local e Firebase)"""
+        try:
+            # Limpar logs locais
+            self._clear_local_logs()
+            
+            # Limpar logs do Firebase se conectado
+            if self.firebase_connected and self.db:
+                try:
+                    ref = self.db.reference('/access_logs')
+                    ref.delete()
+                    print("✅ Logs do Firebase limpos!")
+                except Exception as e:
+                    print(f"Erro ao limpar Firebase: {e}")
+            
+            print("✅ Todos os logs foram limpos!")
+            return True
+            
+        except Exception as e:
+            print(f"Erro ao limpar logs: {e}")
+            return False
 
 # Instância global do gerenciador Firebase
 firebase_manager = FirebaseManager()

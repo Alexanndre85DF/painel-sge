@@ -58,23 +58,19 @@ def dashboard_admin():
     """, unsafe_allow_html=True)
     
     # Botões de controle
-    col_control1, col_control2, col_control3, col_control4 = st.columns(4)
+    col_control1, col_control2, col_control3 = st.columns(3)
     
     with col_control1:
-        if st.button("🔄 Atualizar Dados", use_container_width=True, type="primary"):
-            st.rerun()
-    
-    with col_control2:
         if st.button("📊 Relatório Completo", use_container_width=True):
             st.session_state.mostrar_relatorio = True
             st.rerun()
     
-    with col_control3:
+    with col_control2:
         if st.button("👥 Estatísticas por Usuário", use_container_width=True):
             st.session_state.mostrar_stats_usuario = True
             st.rerun()
     
-    with col_control4:
+    with col_control3:
         if st.button("🚪 Sair do Admin", use_container_width=True):
             st.session_state.admin_logado = False
             st.session_state.mostrar_admin = False
@@ -93,7 +89,15 @@ def dashboard_admin():
         
         # Converter para DataFrame
         df_logs = pd.DataFrame(logs)
-        df_logs['timestamp'] = pd.to_datetime(df_logs['timestamp'])
+        
+        # Converter timestamp de forma simples
+        df_logs['timestamp'] = pd.to_datetime(df_logs['timestamp'], errors='coerce')
+        df_logs = df_logs.dropna(subset=['timestamp'])
+        
+        if len(df_logs) == 0:
+            st.warning("Nenhum timestamp válido encontrado nos logs.")
+            return
+            
         df_logs['data'] = df_logs['timestamp'].dt.date
         df_logs['hora'] = df_logs['timestamp'].dt.strftime('%H:%M')
         
@@ -168,7 +172,7 @@ def dashboard_admin():
             st.plotly_chart(fig_usuario, use_container_width=True)
         
         # Gráfico de acessos por hora
-        df_filtrado['hora_int'] = pd.to_datetime(df_filtrado['hora'], format='%H:%M').dt.hour
+        df_filtrado['hora_int'] = df_filtrado['timestamp'].dt.hour
         acessos_por_hora = df_filtrado.groupby('hora_int').size().reset_index(name='acessos')
         fig_hora = px.bar(acessos_por_hora, x='hora_int', y='acessos',
                          title='Acessos por Hora do Dia')
@@ -215,11 +219,18 @@ def dashboard_admin():
                         # Verificar se já existe um log similar recente
                         log_similar = False
                         for log_existente in logs_limpos:
-                            if (log_existente.get('usuario') == usuario and 
-                                abs((datetime.fromisoformat(timestamp.replace('Z', '')) - 
-                                     datetime.fromisoformat(log_existente.get('timestamp', '').replace('Z', ''))).seconds) < 120):
-                                log_similar = True
-                                break
+                            if log_existente.get('usuario') == usuario:
+                                try:
+                                    # Usar a mesma função de parsing de timestamp
+                                    ts1 = parse_timestamp(timestamp)
+                                    ts2 = parse_timestamp(log_existente.get('timestamp', ''))
+                                    if abs((ts1 - ts2).seconds) < 120:
+                                        log_similar = True
+                                        break
+                                except:
+                                    # Se não conseguir comparar timestamps, considerar como similar
+                                    log_similar = True
+                                    break
                         
                         if not log_similar:
                             logs_limpos.append(log)
@@ -255,6 +266,42 @@ def relatorio_completo():
     """Relatório completo de acessos"""
     st.markdown("### 📊 Relatório Completo de Acessos")
     
+    # Botões de ação no topo
+    col_btn1, col_btn2, col_btn3 = st.columns(3)
+    
+    with col_btn1:
+        if st.button("🔄 Atualizar Relatório", use_container_width=True, type="primary"):
+            st.rerun()
+    
+    with col_btn2:
+        if st.button("🗑️ RESETAR DADOS (ZERAR TUDO)", use_container_width=True, type="secondary"):
+            if st.session_state.get('confirm_reset', False):
+                # Confirmar reset
+                try:
+                    # Limpar arquivo local
+                    with open('local_access_log.json', 'w', encoding='utf-8') as f:
+                        json.dump([], f, ensure_ascii=False, indent=2)
+                    
+                    # Tentar limpar Firebase também
+                    try:
+                        firebase_manager.clear_all_logs()
+                    except:
+                        pass
+                    
+                    st.success("✅ Dados resetados com sucesso!")
+                    st.session_state.confirm_reset = False
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao resetar: {e}")
+            else:
+                st.session_state.confirm_reset = True
+                st.warning("⚠️ Clique novamente para confirmar o RESET!")
+    
+    with col_btn3:
+        if st.button("← Voltar ao Dashboard", use_container_width=True):
+            st.session_state.mostrar_relatorio = False
+            st.rerun()
+    
     try:
         logs = firebase_manager.get_access_logs(limit=1000)
         
@@ -262,54 +309,82 @@ def relatorio_completo():
             st.warning("Nenhum log encontrado.")
             return
         
+        # Converter para DataFrame simples
         df_logs = pd.DataFrame(logs)
-        df_logs['timestamp'] = pd.to_datetime(df_logs['timestamp'])
         
-        # Estatísticas gerais
-        col1, col2 = st.columns(2)
+        # Criar lista de todos os acessos (como planilha)
+        st.markdown("#### 📋 Lista Completa de Todos os Acessos")
         
-        with col1:
-            st.markdown("#### 📈 Estatísticas Gerais")
-            
+        # Preparar dados para exibição
+        df_display = df_logs[['data_hora', 'usuario', 'ip', 'user_agent']].copy()
+        df_display.columns = ['Data/Hora', 'Usuário', 'IP', 'Navegador']
+        df_display = df_display.sort_values('Data/Hora', ascending=False)
+        
+        # Exibir tabela completa
+        st.dataframe(
+            df_display, 
+            use_container_width=True, 
+            height=500,
+            hide_index=True
+        )
+        
+        # Estatísticas resumidas
+        col_stats1, col_stats2, col_stats3, col_stats4 = st.columns(4)
+        
+        with col_stats1:
             total_acessos = len(df_logs)
-            usuarios_unicos = df_logs['usuario'].nunique()
-            ips_unicos = df_logs['ip'].nunique()
-            
             st.metric("Total de Acessos", total_acessos)
+        
+        with col_stats2:
+            usuarios_unicos = df_logs['usuario'].nunique()
             st.metric("Usuários Únicos", usuarios_unicos)
+        
+        with col_stats3:
+            ips_unicos = df_logs['ip'].nunique()
             st.metric("IPs Únicos", ips_unicos)
+        
+        with col_stats4:
+            if len(df_logs) > 0:
+                ultimo_acesso = df_logs['data_hora'].iloc[0]  # Primeiro da lista ordenada
+                st.metric("Último Acesso", ultimo_acesso)
+        
+        # Botões de exportação
+        col_export1, col_export2 = st.columns(2)
+        
+        with col_export1:
+            if st.button("📥 Exportar Lista Completa para Excel"):
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df_display.to_excel(writer, sheet_name='Todos os Acessos', index=False)
+                
+                st.download_button(
+                    label="⬇️ Baixar Lista Completa",
+                    data=output.getvalue(),
+                    file_name=f"todos_acessos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        
+        with col_export2:
+            # Lista resumida por usuário
+            stats_usuarios = df_logs.groupby('usuario').agg({
+                'data_hora': ['count', 'first', 'last']
+            })
+            stats_usuarios.columns = ['Total_Acessos', 'Primeiro_Acesso', 'Ultimo_Acesso']
+            stats_usuarios = stats_usuarios.reset_index()
+            stats_usuarios.columns = ['Usuário', 'Total de Acessos', 'Primeiro Acesso', 'Último Acesso']
+            stats_usuarios = stats_usuarios.sort_values('Total de Acessos', ascending=False)
             
-            # Período de atividade
-            primeiro_acesso = df_logs['timestamp'].min()
-            ultimo_acesso = df_logs['timestamp'].max()
-            
-            st.info(f"**Período:** {primeiro_acesso.strftime('%d/%m/%Y')} até {ultimo_acesso.strftime('%d/%m/%Y')}")
-        
-        with col2:
-            st.markdown("#### 🏆 Top Usuários")
-            
-            top_usuarios = df_logs.groupby('usuario').size().sort_values(ascending=False).head(10)
-            
-            for i, (usuario, acessos) in enumerate(top_usuarios.items(), 1):
-                st.write(f"{i}. **{usuario}**: {acessos} acessos")
-        
-        # Gráfico de evolução temporal
-        st.markdown("#### 📈 Evolução Temporal")
-        
-        df_logs['data'] = df_logs['timestamp'].dt.date
-        evolucao = df_logs.groupby('data').agg({
-            'usuario': 'count',
-            'ip': 'nunique'
-        }).rename(columns={'usuario': 'total_acessos', 'ip': 'ips_unicos'})
-        
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=evolucao.index, y=evolucao['total_acessos'], 
-                                mode='lines+markers', name='Total de Acessos'))
-        fig.add_trace(go.Scatter(x=evolucao.index, y=evolucao['ips_unicos'], 
-                                mode='lines+markers', name='IPs Únicos'))
-        
-        fig.update_layout(title='Evolução dos Acessos', xaxis_title='Data', yaxis_title='Quantidade')
-        st.plotly_chart(fig, use_container_width=True)
+            if st.button("📊 Exportar Resumo por Usuário"):
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    stats_usuarios.to_excel(writer, sheet_name='Resumo por Usuário', index=False)
+                
+                st.download_button(
+                    label="⬇️ Baixar Resumo",
+                    data=output.getvalue(),
+                    file_name=f"resumo_usuarios_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
         
     except Exception as e:
         st.error(f"Erro ao gerar relatório: {str(e)}")
