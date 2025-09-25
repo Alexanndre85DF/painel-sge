@@ -3,7 +3,7 @@ Configuração do Firebase para monitoramento de acessos
 """
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 
 try:
@@ -34,11 +34,11 @@ class FirebaseManager:
             if firebase_config is None:
                 firebase_config = self._load_config_from_file()
             
-            # Inicializa o Firebase
+            # Inicializa o Firebase com credenciais do Service Account
             if not firebase_admin._apps:
-                firebase_admin.initialize_app(options={
-                    'databaseURL': firebase_config['databaseURL'],
-                    'projectId': firebase_config['projectId']
+                cred = credentials.Certificate(firebase_config)
+                firebase_admin.initialize_app(cred, {
+                    'databaseURL': firebase_config['databaseURL']
                 })
             
             self.app = firebase_admin.get_app()
@@ -71,8 +71,8 @@ class FirebaseManager:
             'usuario': usuario,
             'ip': ip,
             'user_agent': user_agent or 'Unknown',
-            'timestamp': datetime.now().isoformat(),
-            'data_hora': datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+            'timestamp': datetime.now(timezone(timedelta(hours=-3))).isoformat(),
+            'data_hora': datetime.now(timezone(timedelta(hours=-3))).strftime('%d/%m/%Y %H:%M:%S')
         }
         
         # Sempre salvar localmente (rápido)
@@ -88,7 +88,7 @@ class FirebaseManager:
                 print(f"⚠️ Firebase temporariamente indisponível: {e}")
                 self.firebase_connected = False
         
-        return f"local_{datetime.now().timestamp()}"
+        return f"local_{datetime.now(timezone(timedelta(hours=-3))).timestamp()}"
     
     def _save_local_log(self, access_data: Dict[str, Any]):
         """Salva log localmente"""
