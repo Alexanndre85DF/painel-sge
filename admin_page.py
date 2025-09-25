@@ -233,6 +233,19 @@ def dashboard_admin():
                     
                 except Exception as e:
                     st.error(f"Erro ao limpar logs: {e}")
+        
+        # Botão para sincronizar com Firebase
+        col_sync, col_empty = st.columns(2)
+        
+        with col_sync:
+            if st.button("☁️ Sincronizar com Firebase"):
+                try:
+                    firebase_manager.sync_to_firebase()
+                    st.success("✅ Dados sincronizados com Firebase!")
+                    st.info("Atualize a página do Firebase Console para ver os dados.")
+                except Exception as e:
+                    st.error(f"Erro na sincronização: {e}")
+                    st.info("Os dados continuam salvos localmente no arquivo 'local_access_log.json'")
     
     except Exception as e:
         st.error(f"Erro ao carregar dados: {str(e)}")
