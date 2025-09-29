@@ -293,7 +293,7 @@ def relatorio_completo():
                 st.warning("⚠️ Clique novamente para confirmar o RESET!")
     
     with col_btn3:
-        if st.button("← Voltar ao Dashboard", use_container_width=True):
+        if st.button("← Voltar ao Dashboard", use_container_width=True, key="btn_voltar_relatorio_admin"):
             st.session_state.mostrar_relatorio = False
             st.rerun()
     
@@ -389,7 +389,7 @@ def estatisticas_usuario():
     st.markdown("### 👥 Estatísticas por Usuário")
     
     # Botão para voltar ao dashboard
-    if st.button("⬅️ Voltar ao Dashboard"):
+    if st.button("⬅️ Voltar ao Dashboard", key="btn_voltar_stats_usuario"):
         st.session_state.mostrar_stats_usuario = False
         st.rerun()
     

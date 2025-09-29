@@ -114,13 +114,12 @@ def autenticar_usuario(identificador, senha):
                 if MONITORING_AVAILABLE:
                     try:
                         client_info = get_client_info()
-                        # Verificar se já existe um acesso recente (últimos 5 minutos) do mesmo usuário
-                        if not _has_recent_access(usuario.get('NOME', 'Usuário')):
-                            firebase_manager.log_access(
-                                usuario=usuario.get('NOME', 'Usuário'),
-                                ip=client_info['ip'],
-                                user_agent=client_info['user_agent']
-                            )
+                        # Sempre registrar o acesso (removida verificação de acesso recente)
+                        firebase_manager.log_access(
+                            usuario=usuario.get('NOME', 'Usuário'),
+                            ip=client_info['ip'],
+                            user_agent=client_info['user_agent']
+                        )
                     except Exception as e:
                         print(f"Erro ao registrar acesso: {e}")
                 
@@ -193,7 +192,7 @@ def tela_instrucoes():
     # Botão para voltar
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        if st.button("Voltar ao Login", use_container_width=True, type="primary"):
+        if st.button("Voltar ao Login", use_container_width=True, type="primary", key="btn_voltar_login"):
             st.session_state.mostrar_instrucoes = False
             st.rerun()
     
@@ -368,7 +367,7 @@ def tela_login():
     col_inst, col_main, col_empty = st.columns([1, 2, 1])
     
     with col_inst:
-        if st.button("Instruções", use_container_width=True, help="Como usar o sistema", type="primary"):
+        if st.button("Instruções", use_container_width=True, help="Como usar o sistema", type="primary", key="btn_instrucoes"):
             st.session_state.mostrar_instrucoes = True
             st.rerun()
     
@@ -491,7 +490,7 @@ def tela_sobre():
     
     col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 1])
     with col_btn2:
-        if st.button("Fechar", use_container_width=True, type="primary"):
+        if st.button("Fechar", use_container_width=True, type="primary", key="btn_fechar_sobre"):
             st.session_state.mostrar_sobre = False
             st.rerun()
 
@@ -1880,13 +1879,13 @@ if st.session_state.mostrar_admin:
             # Verificar qual tela administrativa mostrar
             if st.session_state.mostrar_relatorio:
                 relatorio_completo()
-                if st.button("⬅️ Voltar ao Dashboard"):
+                if st.button("⬅️ Voltar ao Dashboard", key="btn_voltar_relatorio"):
                     st.session_state.mostrar_relatorio = False
                     st.rerun()
                 st.stop()
             elif st.session_state.mostrar_stats_usuario:
                 estatisticas_usuario()
-                if st.button("⬅️ Voltar ao Dashboard"):
+                if st.button("⬅️ Voltar ao Dashboard", key="btn_voltar_stats"):
                     st.session_state.mostrar_stats_usuario = False
                     st.rerun()
                 st.stop()
@@ -1895,7 +1894,7 @@ if st.session_state.mostrar_admin:
                 st.stop()
     else:
         st.error("Sistema de monitoramento não disponível. Verifique as dependências do Firebase.")
-        if st.button("⬅️ Voltar"):
+        if st.button("⬅️ Voltar", key="btn_voltar_admin"):
             st.session_state.mostrar_admin = False
             st.rerun()
         st.stop()
@@ -1920,21 +1919,21 @@ st.markdown(f"""
 col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([2, 1, 1, 1, 1])
 
 with col_nav2:
-    if st.button("🔑 Alterar Senha", use_container_width=True):
+    if st.button("🔑 Alterar Senha", use_container_width=True, key="btn_alterar_senha"):
         st.session_state.mostrar_alterar_senha = True
         st.rerun()
 
 with col_nav3:
-    if st.button("ℹ️ Sobre", use_container_width=True):
+    if st.button("ℹ️ Sobre", use_container_width=True, key="btn_sobre"):
         st.session_state.mostrar_sobre = True
 
 with col_nav4:
-    if MONITORING_AVAILABLE and st.button("🔐 Admin", use_container_width=True):
+    if MONITORING_AVAILABLE and st.button("🔐 Admin", use_container_width=True, key="btn_admin"):
         st.session_state.mostrar_admin = True
         st.rerun()
 
 with col_nav5:
-    if st.button("🚪 Sair", use_container_width=True):
+    if st.button("🚪 Sair", use_container_width=True, key="btn_sair"):
         # Registrar logout se disponível
         if MONITORING_AVAILABLE and st.session_state.usuario:
             try:
