@@ -389,7 +389,7 @@ def estatisticas_usuario():
     st.markdown("### 👥 Estatísticas por Usuário")
     
     # Botão para voltar ao dashboard
-    if st.button("⬅️ Voltar ao Dashboard", key="btn_voltar_stats_usuario"):
+    if st.button("⬅️ Voltar ao Dashboard", key="btn_voltar_stats_usuario_admin"):
         st.session_state.mostrar_stats_usuario = False
         st.rerun()
     

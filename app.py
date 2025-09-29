@@ -1879,15 +1879,9 @@ if st.session_state.mostrar_admin:
             # Verificar qual tela administrativa mostrar
             if st.session_state.mostrar_relatorio:
                 relatorio_completo()
-                if st.button("⬅️ Voltar ao Dashboard", key="btn_voltar_relatorio"):
-                    st.session_state.mostrar_relatorio = False
-                    st.rerun()
                 st.stop()
             elif st.session_state.mostrar_stats_usuario:
                 estatisticas_usuario()
-                if st.button("⬅️ Voltar ao Dashboard", key="btn_voltar_stats"):
-                    st.session_state.mostrar_stats_usuario = False
-                    st.rerun()
                 st.stop()
             else:
                 dashboard_admin()
