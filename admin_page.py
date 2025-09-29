@@ -58,19 +58,14 @@ def dashboard_admin():
     """, unsafe_allow_html=True)
     
     # Botões de controle
-    col_control1, col_control2, col_control3 = st.columns(3)
+    col_control1, col_control2 = st.columns([3, 1])
     
     with col_control1:
-        if st.button("📊 Relatório Completo", use_container_width=True):
-            st.session_state.mostrar_relatorio = True
-            st.rerun()
-    
-    with col_control2:
-        if st.button("👥 Estatísticas por Usuário", use_container_width=True):
+        if st.button("👥 Estatísticas por Usuário", use_container_width=True, type="primary"):
             st.session_state.mostrar_stats_usuario = True
             st.rerun()
     
-    with col_control3:
+    with col_control2:
         if st.button("🚪 Sair do Admin", use_container_width=True):
             st.session_state.admin_logado = False
             st.session_state.mostrar_admin = False
@@ -393,6 +388,11 @@ def estatisticas_usuario():
     """Estatísticas detalhadas por usuário"""
     st.markdown("### 👥 Estatísticas por Usuário")
     
+    # Botão para voltar ao dashboard
+    if st.button("⬅️ Voltar ao Dashboard"):
+        st.session_state.mostrar_stats_usuario = False
+        st.rerun()
+    
     try:
         logs = firebase_manager.get_access_logs(limit=1000)
         
@@ -402,9 +402,25 @@ def estatisticas_usuario():
         
         df_logs = pd.DataFrame(logs)
         
+        # Lista de usuários únicos
+        usuarios_unicos = sorted(df_logs['usuario'].unique())
+        
+        # Campo de busca por nome
+        st.markdown("#### 🔍 Buscar Usuário")
+        busca_nome = st.text_input("Digite o nome para buscar:", placeholder="Ex: ALEXANDRE")
+        
+        # Filtrar usuários baseado na busca
+        if busca_nome:
+            usuarios_filtrados = [u for u in usuarios_unicos if busca_nome.upper() in u.upper()]
+        else:
+            usuarios_filtrados = usuarios_unicos
+        
+        if not usuarios_filtrados:
+            st.warning("Nenhum usuário encontrado com esse nome.")
+            return
+        
         # Selecionar usuário
-        usuarios = sorted(df_logs['usuario'].unique())
-        usuario_selecionado = st.selectbox("Selecionar usuário:", usuarios)
+        usuario_selecionado = st.selectbox("Selecionar usuário:", usuarios_filtrados)
         
         if usuario_selecionado:
             # Estatísticas do usuário

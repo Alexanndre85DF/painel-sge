@@ -410,6 +410,91 @@ def tela_login():
         st.markdown("---")
         st.markdown("<div style='text-align: center;'><strong>Desenvolvido por Alexandre Tolentino</strong></div>", unsafe_allow_html=True)
 
+def tela_sobre():
+    """Exibe modal com informações sobre o sistema"""
+    st.title("História do Painel SGE")
+    st.markdown("---")
+    
+    # CSS para aumentar fonte e justificar texto
+    st.markdown("""
+    <style>
+    .sobre-texto {
+        font-size: 16px;
+        line-height: 1.8;
+        text-align: justify;
+        margin-bottom: 20px;
+    }
+    .sobre-titulo {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="sobre-titulo">Desenvolvedor: Alexandre Tolentino</div>
+    <div class="sobre-titulo">Cargo: Técnico de Currículo da Superintendência Regional de Educação de Gurupi - TO</div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="sobre-texto">
+    Este painel foi desenvolvido para atender uma necessidade crítica identificada no processo de análise de dados educacionais da Superintendência Regional de Educação de Gurupi. O Sistema de Gestão Escolar (SGE) fornecia uma grande quantidade de informações sobre o desempenho dos alunos, frequência e indicadores educacionais, porém o processo de análise e interpretação desses dados era extremamente trabalhoso e demorado.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="sobre-texto">
+    O trabalho manual de coleta, organização e análise dos dados das escolas levava horas para ser concluído, comprometendo significativamente a eficiência do processo de acompanhamento pedagógico. Quando os técnicos chegavam às escolas para apresentar os resultados e discutir estratégias de intervenção para melhoria do processo de ensino-aprendizagem, muitas vezes não dispunham de tempo suficiente para uma análise aprofundada e contextualizada dos dados.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="sobre-texto">
+    Diante dessa realidade, Alexandre Tolentino, reconhecendo a necessidade de uma ferramenta mais eficiente e ágil, desenvolveu este painel interativo. A solução permite que, com a simples inserção da planilha de dados do SGE, em questão de segundos sejam apresentados todos os indicadores da unidade escolar de forma organizada, visual e facilmente interpretável.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="sobre-texto">
+    No dia seguinte à sua criação, o painel foi apresentado à equipe técnica da Superintendência Regional de Educação de Gurupi, sendo imediatamente aprovado por todos os membros da equipe. A ferramenta foi incorporada ao processo de trabalho de forma instantânea, permitindo que os técnicos levassem às escolas análises mais precisas e discussões mais produtivas sobre estratégias de melhoria dos índices educacionais.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="sobre-texto">
+    Posteriormente, o próprio Sistema de Gestão Escolar desenvolveu um mapa de acompanhamento que oferecia funcionalidades similares. No entanto, a Superintendência Regional de Educação de Gurupi optou por continuar utilizando este painel personalizado, pois ele apresentava características específicas e funcionalidades particulares que o mapa oficial do SGE não possuía, atendendo melhor às necessidades específicas da região.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="sobre-texto">
+    O sucesso da ferramenta despertou o interesse das próprias escolas, que passaram a solicitar acesso ao painel para realizar seus próprios levantamentos e análises internas. Diante dessa demanda, a ferramenta foi disponibilizada para que cada unidade escolar pudesse fazer o monitoramento de seus próprios indicadores e implementar intervenções direcionadas e contextualizadas. Esta iniciativa tem se mostrado extremamente eficaz, contribuindo significativamente para a melhoria da qualidade educacional na região.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="sobre-texto">
+    Desde sua implementação inicial até os dias atuais, o painel tem passado por constantes atualizações e melhorias, sempre baseadas nas necessidades reais identificadas pelos usuários. Alexandre Tolentino continua desenvolvendo e aprimorando o sistema conforme novas demandas surgem, garantindo que a ferramenta permaneça atual, útil e eficaz para o processo de gestão educacional.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="sobre-texto">
+    Este trabalho representa um exemplo concreto de como a tecnologia, quando aplicada de forma inteligente e direcionada às necessidades reais do sistema educacional, pode transformar dados brutos em informações estratégicas que contribuem efetivamente para a melhoria da qualidade do ensino e do aprendizado.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.info("**Missão:** Transformar dados em ações educacionais eficazes")
+    st.markdown("---")
+    
+    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 1])
+    with col_btn2:
+        if st.button("Fechar", use_container_width=True, type="primary"):
+            st.session_state.mostrar_sobre = False
+            st.rerun()
+
 def tela_alterar_senha():
     """Exibe tela para alterar senha"""
     st.title("🔑 Alterar Senha")
@@ -1762,6 +1847,8 @@ if 'mostrar_relatorio' not in st.session_state:
     st.session_state.mostrar_relatorio = False
 if 'mostrar_stats_usuario' not in st.session_state:
     st.session_state.mostrar_stats_usuario = False
+if 'mostrar_sobre' not in st.session_state:
+    st.session_state.mostrar_sobre = False
 
 # Verificar se deve mostrar tela de instruções
 if st.session_state.mostrar_instrucoes:
@@ -1776,6 +1863,11 @@ if not st.session_state.logado:
 # Verificar se deve mostrar tela de alterar senha
 if st.session_state.mostrar_alterar_senha:
     tela_alterar_senha()
+    st.stop()
+
+# Verificar se deve mostrar modal sobre
+if st.session_state.mostrar_sobre:
+    tela_sobre()
     st.stop()
 
 # Verificar se deve mostrar área administrativa
@@ -1834,7 +1926,7 @@ with col_nav2:
 
 with col_nav3:
     if st.button("ℹ️ Sobre", use_container_width=True):
-        st.info("Sistema desenvolvido por Alexandre Tolentino para a SRE Gurupi")
+        st.session_state.mostrar_sobre = True
 
 with col_nav4:
     if MONITORING_AVAILABLE and st.button("🔐 Admin", use_container_width=True):
@@ -2579,12 +2671,12 @@ else:
 
 with st.expander(expander_title):
     if "Frequencia Anual" in df_filt.columns or "Frequencia" in df_filt.columns:
-        # Tabela de frequência por aluno (agrupando apenas por aluno para evitar duplicação)
+        # Tabela de frequência por aluno e turma (agrupando por aluno e turma para mostrar turmas)
         if "Frequencia Anual" in df_filt.columns:
-            freq_detalhada = df_filt.groupby(coluna_aluno)["Frequencia Anual"].last().reset_index()
+            freq_detalhada = df_filt.groupby([coluna_aluno, "Turma"])["Frequencia Anual"].last().reset_index()
             freq_detalhada = freq_detalhada.rename(columns={"Frequencia Anual": "Frequencia"})
         else:
-            freq_detalhada = df_filt.groupby(coluna_aluno)["Frequencia"].last().reset_index()
+            freq_detalhada = df_filt.groupby([coluna_aluno, "Turma"])["Frequencia"].last().reset_index()
         freq_detalhada["Classificacao_Freq"] = freq_detalhada["Frequencia"].apply(classificar_frequencia)
         freq_detalhada = freq_detalhada.sort_values(coluna_aluno)
         
@@ -2609,7 +2701,7 @@ with st.expander(expander_title):
         )
         
         # Aplicar cores
-        styled_freq = freq_detalhada[[coluna_aluno, "Frequencia_Formatada", "Classificacao_Freq"]]\
+        styled_freq = freq_detalhada[[coluna_aluno, "Turma", "Frequencia_Formatada", "Classificacao_Freq"]]\
             .style.applymap(color_frequencia, subset=["Classificacao_Freq"])
         
         st.dataframe(styled_freq, use_container_width=True)
@@ -2671,15 +2763,15 @@ for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
 # Função para aplicar cores na classificação (definida antes de usar)
 def color_classification(val):
     if val == "Verde":
-        return "background-color: #d4edda; color: #155724"  # Verde claro
+        return "background-color: #10b981; color: white; font-weight: bold;"  # Verde forte
     elif val == "Vermelho Duplo":
-        return "background-color: #f8d7da; color: #721c24"  # Vermelho claro
+        return "background-color: #dc2626; color: white; font-weight: bold;"  # Vermelho forte
     elif val == "Queda p/ Vermelho":
-        return "background-color: #fff3cd; color: #856404"  # Amarelo claro
+        return "background-color: #f59e0b; color: white; font-weight: bold;"  # Laranja forte
     elif val == "Recuperou":
-        return "background-color: #cce5ff; color: #004085"  # Azul claro
+        return "background-color: #3b82f6; color: white; font-weight: bold;"  # Azul forte
     elif val == "Incompleto":
-        return "background-color: #e2e3e5; color: #383d41"  # Cinza claro
+        return "background-color: #6b7280; color: white; font-weight: bold;"  # Cinza forte
     else:
         return ""
 
@@ -3052,23 +3144,35 @@ with col_export3:
             )
 
 # Legenda de cores
-st.markdown("### Legenda de Cores")
+st.markdown("### 🎨 Legenda de Cores")
 col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown("""
-    **Verde**: Aluno está bem (N1≥6 e N2≥6)  
-    **Vermelho Duplo**: Risco alto (N1<6 e N2<6)
-    """)
+    <div style="background-color: #10b981; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
+        🟢 Verde: Aluno está bem (N1≥6 e N2≥6)
+    </div>
+    <div style="background-color: #dc2626; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
+        🔴 Vermelho Duplo: Risco alto (N1<6 e N2<6)
+    </div>
+    """, unsafe_allow_html=True)
 with col2:
     st.markdown("""
-    **Queda p/ Vermelho**: Piorou (N1≥6 e N2<6)  
-    **Recuperou**: Melhorou (N1<6 e N2≥6)
-    """)
+    <div style="background-color: #f59e0b; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
+        🟠 Queda p/ Vermelho: Piorou (N1≥6 e N2<6)
+    </div>
+    <div style="background-color: #3b82f6; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
+        🔵 Recuperou: Melhorou (N1<6 e N2≥6)
+    </div>
+    """, unsafe_allow_html=True)
 with col3:
     st.markdown("""
-    **Incompleto**: Falta nota  
-    **Corda Bamba**: Precisa ≥7 nos próximos 2
-    """)
+    <div style="background-color: #6b7280; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
+        ⚪ Incompleto: Falta nota
+    </div>
+    <div style="background-color: #8b5cf6; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
+        🟣 Corda Bamba: Precisa ≥7 nos próximos 2
+    </div>
+    """, unsafe_allow_html=True)
 
 st.markdown(
     """
@@ -3356,7 +3460,74 @@ with st.expander("Análise Cruzada: Notas x Frequência"):
                 freq_baixa_display["Frequencia"] = freq_baixa_display["Frequencia"].apply(
                     lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
                 )
-                st.dataframe(freq_baixa_display, use_container_width=True)
+                
+                # Função para colorir classificações de frequência
+                def color_frequencia_classification(val):
+                    if val == "Reprovado":
+                        return "background-color: #dc2626; color: white; font-weight: bold;"  # Vermelho forte
+                    elif val == "Alto Risco":
+                        return "background-color: #ea580c; color: white; font-weight: bold;"  # Laranja escuro
+                    elif val == "Risco Moderado":
+                        return "background-color: #f59e0b; color: white; font-weight: bold;"  # Laranja forte
+                    elif val == "Ponto de Atenção":
+                        return "background-color: #eab308; color: white; font-weight: bold;"  # Amarelo forte
+                    elif val == "Meta Favorável":
+                        return "background-color: #10b981; color: white; font-weight: bold;"  # Verde forte
+                    else:
+                        return ""
+                
+                # Aplicar cores nas duas colunas de classificação
+                styled_cruzada = freq_baixa_display.style.applymap(
+                    color_classification, subset=["Classificacao"]
+                ).applymap(
+                    color_frequencia_classification, subset=["Classificacao_Freq"]
+                )
+                
+                st.dataframe(styled_cruzada, use_container_width=True)
+                
+                # Legenda para classificações de frequência
+                st.markdown("### 🎨 Legenda das Classificações")
+                col_leg1, col_leg2 = st.columns(2)
+                
+                with col_leg1:
+                    st.markdown("**Classificação de Notas:**")
+                    st.markdown("""
+                    <div style="background-color: #10b981; color: white; padding: 5px; border-radius: 3px; margin: 2px 0; font-weight: bold; text-align: center;">
+                        🟢 Verde: Aluno está bem (N1≥6 e N2≥6)
+                    </div>
+                    <div style="background-color: #dc2626; color: white; padding: 5px; border-radius: 3px; margin: 2px 0; font-weight: bold; text-align: center;">
+                        🔴 Vermelho Duplo: Risco alto (N1<6 e N2<6)
+                    </div>
+                    <div style="background-color: #f59e0b; color: white; padding: 5px; border-radius: 3px; margin: 2px 0; font-weight: bold; text-align: center;">
+                        🟠 Queda p/ Vermelho: Piorou (N1≥6 e N2<6)
+                    </div>
+                    <div style="background-color: #3b82f6; color: white; padding: 5px; border-radius: 3px; margin: 2px 0; font-weight: bold; text-align: center;">
+                        🔵 Recuperou: Melhorou (N1<6 e N2≥6)
+                    </div>
+                    <div style="background-color: #6b7280; color: white; padding: 5px; border-radius: 3px; margin: 2px 0; font-weight: bold; text-align: center;">
+                        ⚪ Incompleto: Falta nota
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col_leg2:
+                    st.markdown("**Classificação de Frequência:**")
+                    st.markdown("""
+                    <div style="background-color: #dc2626; color: white; padding: 5px; border-radius: 3px; margin: 2px 0; font-weight: bold; text-align: center;">
+                        🔴 Reprovado: < 75%
+                    </div>
+                    <div style="background-color: #ea580c; color: white; padding: 5px; border-radius: 3px; margin: 2px 0; font-weight: bold; text-align: center;">
+                        🟠 Alto Risco: < 80%
+                    </div>
+                    <div style="background-color: #f59e0b; color: white; padding: 5px; border-radius: 3px; margin: 2px 0; font-weight: bold; text-align: center;">
+                        🟠 Risco Moderado: < 90%
+                    </div>
+                    <div style="background-color: #eab308; color: white; padding: 5px; border-radius: 3px; margin: 2px 0; font-weight: bold; text-align: center;">
+                        🟡 Ponto de Atenção: < 95%
+                    </div>
+                    <div style="background-color: #10b981; color: white; padding: 5px; border-radius: 3px; margin: 2px 0; font-weight: bold; text-align: center;">
+                        🟢 Meta Favorável: ≥ 95%
+                    </div>
+                    """, unsafe_allow_html=True)
                 
                 # Botão de exportação para alunos com frequência baixa
                 col_export_freq_baixa1, col_export_freq_baixa2 = st.columns([1, 4])
