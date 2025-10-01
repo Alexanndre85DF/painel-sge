@@ -117,5 +117,19 @@
     "user_agent": "Streamlit App",
     "timestamp": "2025-10-01T08:14:23.511735-03:00",
     "data_hora": "01/10/2025 08:14:23"
+  },
+  {
+    "usuario": "ALEXANDRE PEREIRA TOLENTINO",
+    "ip": "128.201.17.232",
+    "user_agent": "Streamlit App",
+    "timestamp": "2025-10-01T09:46:55.378979-03:00",
+    "data_hora": "01/10/2025 09:46:55"
+  },
+  {
+    "usuario": "ALEXANDRE PEREIRA TOLENTINO",
+    "ip": "128.201.17.232",
+    "user_agent": "Streamlit App",
+    "timestamp": "2025-10-01T09:46:59.104374-03:00",
+    "data_hora": "01/10/2025 09:46:59"
   }
 ]
