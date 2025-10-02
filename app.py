@@ -1722,36 +1722,6 @@ def classificar_status_b1_b2(n1, n2, media12):
         return "Recuperou"
     return "Verde"
 
-def classificar_status_b1_b2_b3(n1, n2, n3, media123):
-    """
-    Classificação considerando 3 bimestres:
-      - 'Vermelho Triplo': n1<6, n2<6 e n3<6
-      - 'Vermelho Duplo': duas notas abaixo de 6
-      - 'Queda Recente': n1>=6 e/ou n2>=6, mas n3<6
-      - 'Recuperação': estava abaixo e melhorou no 3º bimestre
-      - 'Verde': todas as notas >= 6
-      - 'Incompleto': falta alguma nota
-    """
-    # Verificar se falta alguma nota
-    if pd.isna(n1) or pd.isna(n2) or pd.isna(n3):
-        return "Incompleto"
-    
-    # Contar quantas notas estão abaixo da média
-    notas_abaixo = sum([n1 < MEDIA_APROVACAO, n2 < MEDIA_APROVACAO, n3 < MEDIA_APROVACAO])
-    
-    if notas_abaixo == 0:
-        return "Verde"  # Todas acima de 6
-    elif notas_abaixo == 3:
-        return "Vermelho Triplo"  # Todas abaixo de 6
-    elif notas_abaixo == 2:
-        return "Vermelho Duplo"  # Duas abaixo de 6
-    else:  # notas_abaixo == 1
-        # Verificar se é queda recente ou recuperação
-        if n3 < MEDIA_APROVACAO:
-            return "Queda Recente"  # Estava bem mas caiu no 3º
-        else:
-            return "Recuperação"  # Estava mal mas melhorou
-
 def criar_excel_formatado(df, nome_planilha="Dados"):
     """
     Cria um arquivo Excel formatado usando pandas (método mais simples e confiável)
@@ -1795,7 +1765,7 @@ def criar_excel_formatado(df, nome_planilha="Dados"):
 def calcula_indicadores(df):
     """
     Cria um dataframe por Aluno-Disciplina com:
-      N1, N2, N3, N4, Media123, Soma123, ReqMediaProx1 (quanto precisa no próximo bimestre para fechar 6 no ano), Classificacao
+      N1, N2, N3, N4, Media12, Soma12, ReqMediaProx2 (quanto precisa em média nos próximos 2 bimestres para fechar 6 no ano), Classificacao
     """
     # Criar coluna Bimestre
     df = df.copy()
@@ -1823,58 +1793,36 @@ def calcula_indicadores(df):
             rename_cols[b] = f"N{b}"
     pivot = pivot.rename(columns=rename_cols)
 
-    # Obter as notas dos 3 primeiros bimestres
+    # Calcular métricas dos 2 primeiros bimestres
     n1 = pivot.get("N1", pd.Series([np.nan] * len(pivot)))
     n2 = pivot.get("N2", pd.Series([np.nan] * len(pivot)))
-    n3 = pivot.get("N3", pd.Series([np.nan] * len(pivot)))
     
     # Se não existir a coluna, criar uma série de NaN
     if isinstance(n1, float):
         n1 = pd.Series([np.nan] * len(pivot))
     if isinstance(n2, float):
         n2 = pd.Series([np.nan] * len(pivot))
-    if isinstance(n3, float):
-        n3 = pd.Series([np.nan] * len(pivot))
     
-    # Calcular métricas dos 3 primeiros bimestres
-    pivot["Soma123"] = n1.fillna(0) + n2.fillna(0) + n3.fillna(0)
-    # Média dos 3 bimestres (se algum for NaN, considerar apenas os disponíveis)
-    pivot["Media123"] = (n1 + n2 + n3) / 3
-    
-    # Manter também as métricas antigas para compatibilidade
     pivot["Soma12"] = n1.fillna(0) + n2.fillna(0)
+    # Se um dos dois for NaN, a média 12 fica NaN (melhor do que assumir 0)
     pivot["Media12"] = (n1 + n2) / 2
 
-    # Quanto precisa no próximo bimestre (N4) para fechar soma >= 24
-    pivot["PrecisaSomarProx1"] = SOMA_FINAL_ALVO - pivot["Soma123"]
-    pivot["ReqMediaProx1"] = pivot["PrecisaSomarProx1"]
-    
-    # Manter também as métricas antigas para compatibilidade
+    # Quanto precisa nos próximos dois bimestres (N3+N4) para fechar soma >= 24
     pivot["PrecisaSomarProx2"] = SOMA_FINAL_ALVO - pivot["Soma12"]
     pivot["ReqMediaProx2"] = pivot["PrecisaSomarProx2"] / 2
 
-    # Classificação com 3 bimestres
-    # Se N3 não existe (None/NaN), marca como Incompleto já que esperamos 3 bimestres
+    # Classificação b1-b2
     pivot["Classificacao"] = [
-        classificar_status_b1_b2_b3(_n1, _n2, _n3, _m123) if pd.notna(_n3) 
-        else "Incompleto"  # Se falta N3, é incompleto
-        for _n1, _n2, _n3, _m123, _m12 in zip(
-            pivot.get("N1", np.nan), 
-            pivot.get("N2", np.nan), 
-            pivot.get("N3", np.nan),
-            pivot["Media123"],
-            pivot["Media12"]
-        )
+        classificar_status_b1_b2(_n1, _n2, _m12)
+        for _n1, _n2, _m12 in zip(pivot.get("N1", np.nan), pivot.get("N2", np.nan), pivot["Media12"])
     ]
 
     # Flags de alerta
-    # "Corda Bamba": precisa de nota >= 7 no próximo bimestre (ou média >= 7 nos próximos 2)
-    pivot["CordaBamba"] = (pivot["ReqMediaProx1"] >= 7) | (pivot["ReqMediaProx2"] >= 7)
+    # "Corda Bamba": precisa de média >= 7 nos próximos dois bimestres
+    pivot["CordaBamba"] = pivot["ReqMediaProx2"] >= 7
 
-    # "Alerta": qualquer situação crítica ou Corda Bamba
-    pivot["Alerta"] = pivot["Classificacao"].isin([
-        "Vermelho Triplo", "Vermelho Duplo", "Queda p/ Vermelho", "Queda Recente"
-    ]) | pivot["CordaBamba"]
+    # "Alerta": qualquer Vermelho Duplo ou Queda p/ Vermelho ou Corda Bamba
+    pivot["Alerta"] = pivot["Classificacao"].isin(["Vermelho Duplo", "Queda p/ Vermelho"]) | pivot["CordaBamba"]
 
     return pivot
 
@@ -1954,7 +1902,7 @@ st.markdown(f"""
     <h1 style="color: white; margin: 0; font-size: 2.2em; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Superintendência Regional de Educação de Gurupi TO</h1>
     <h2 style="color: white; margin: 15px 0 0 0; font-weight: 600; font-size: 1.8em; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Painel SGE</h2>
     <h3 style="color: rgba(255,255,255,0.95); margin: 10px 0 0 0; font-weight: 500; font-size: 1.4em;">Notas, Frequência, Riscos e Alertas</h3>
-    <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0; font-size: 1.1em; font-weight: 400;">Análise dos 1º, 2º e 3º Bimestres</p>
+    <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0; font-size: 1.1em; font-weight: 400;">Análise dos 1º e 2º Bimestres</p>
     <div style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 10px; border: 1px solid rgba(255,255,255,0.2);">
         <p style="color: white; margin: 0; font-size: 1.2em; font-weight: 600;">👋 Olá, {st.session_state.usuario['nome']}!</p>
     </div>
@@ -2413,22 +2361,17 @@ indic = calcula_indicadores(df_filt)
 st.markdown("""
 <div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
     <h3 style="color: white; text-align: center; margin: 0; font-size: 1.5em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Análise de Notas Abaixo da Média</h3>
-    <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0; font-size: 1.1em; font-weight: 400;">Análise dos 1º, 2º e 3º Bimestres</p>
 </div>
 """, unsafe_allow_html=True)
 
-# Primeira linha: Notas baixas por bimestre
-st.markdown("#### 📉 Total de Notas Abaixo de 6 por Bimestre")
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 notas_baixas_b1 = df_filt[df_filt["Periodo"].str.contains("Primeiro", case=False, na=False) & (df_filt["Nota"] < MEDIA_APROVACAO)]
 notas_baixas_b2 = df_filt[df_filt["Periodo"].str.contains("Segundo", case=False, na=False) & (df_filt["Nota"] < MEDIA_APROVACAO)]
-notas_baixas_b3 = df_filt[df_filt["Periodo"].str.contains("Terceiro", case=False, na=False) & (df_filt["Nota"] < MEDIA_APROVACAO)]
 
 # Número de alunos únicos com notas baixas (não disciplinas)
 alunos_notas_baixas_b1 = notas_baixas_b1[coluna_aluno].nunique() if coluna_aluno in notas_baixas_b1.columns else 0
 alunos_notas_baixas_b2 = notas_baixas_b2[coluna_aluno].nunique() if coluna_aluno in notas_baixas_b2.columns else 0
-alunos_notas_baixas_b3 = notas_baixas_b3[coluna_aluno].nunique() if coluna_aluno in notas_baixas_b3.columns else 0
 
 # Calcular porcentagens baseadas no total de estudantes filtrados
 total_estudantes_para_percent = total_estudantes_filt
@@ -2466,26 +2409,6 @@ with col2:
     st.metric("", "", help="Total de notas abaixo de 6 no 2º bimestre. Inclui todas as disciplinas e alunos.")
 
 with col3:
-    percent_notas_b3 = (len(notas_baixas_b3) / len(df_filt) * 100) if len(df_filt) > 0 else 0
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="font-size: 0.95em; font-weight: 600; color: #1e40af;">Notas < 6 – 3º Bim</div>
-            <div style="background: rgba(30, 64, 175, 0.1); border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #1e40af;">?</div>
-        </div>
-        <div style="font-size: 2em; font-weight: 700; color: #1e40af; margin: 8px 0;">{len(notas_baixas_b3)}</div>
-        <div style="font-size: 1.3em; color: #64748b; font-weight: 600;">({percent_notas_b3:.1f}%)</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Adicionar tooltip
-    st.metric("", "", help="Total de notas abaixo de 6 no 3º bimestre. Inclui todas as disciplinas e alunos.")
-
-# Segunda linha: Alunos únicos com notas baixas
-st.markdown("#### 👥 Alunos Únicos com Notas Abaixo de 6")
-col4, col5, col6 = st.columns(3)
-
-with col4:
     percent_alunos_b1 = (alunos_notas_baixas_b1 / total_estudantes_para_percent * 100) if total_estudantes_para_percent > 0 else 0
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, #f0f9ff, #dbeafe); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(30, 64, 175, 0.15); border-left: 4px solid #1e40af;">
@@ -2501,7 +2424,7 @@ with col4:
     # Adicionar tooltip
     st.metric("", "", help="Número de alunos únicos que tiveram pelo menos uma nota abaixo de 6 no 1º bimestre.")
 
-with col5:
+with col4:
     percent_alunos_b2 = (alunos_notas_baixas_b2 / total_estudantes_para_percent * 100) if total_estudantes_para_percent > 0 else 0
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
@@ -2516,22 +2439,6 @@ with col5:
     
     # Adicionar tooltip
     st.metric("", "", help="Número de alunos únicos que tiveram pelo menos uma nota abaixo de 6 no 2º bimestre.")
-
-with col6:
-    percent_alunos_b3 = (alunos_notas_baixas_b3 / total_estudantes_para_percent * 100) if total_estudantes_para_percent > 0 else 0
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="font-size: 0.95em; font-weight: 600; color: #1e40af;">Alunos < 6 – 3º Bim</div>
-            <div style="background: rgba(30, 64, 175, 0.1); border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #1e40af;">?</div>
-        </div>
-        <div style="font-size: 2em; font-weight: 700; color: #1e40af; margin: 8px 0;">{alunos_notas_baixas_b3}</div>
-        <div style="font-size: 1.3em; color: #64748b; font-weight: 600;">({percent_alunos_b3:.1f}%)</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Adicionar tooltip
-    st.metric("", "", help="Número de alunos únicos que tiveram pelo menos uma nota abaixo de 6 no 3º bimestre.")
 
 # KPIs - Alertas Críticos (com destaque visual)
 st.markdown("""
@@ -2577,7 +2484,7 @@ with col6:
     """.format(corda_bamba_count, alunos_unicos_corda_bamba), unsafe_allow_html=True)
     
     # Adicionar tooltip funcional
-    st.metric("", "", help="Corda Bamba são alunos que precisam tirar 7 ou mais no próximo bimestre para recuperar e sair do limite da média mínima. O número maior mostra em quantas disciplinas eles aparecem; o número entre parênteses mostra quantos alunos diferentes estão nessa condição.")
+    st.metric("", "", help="Corda Bamba são alunos que precisam tirar 7 ou mais nos próximos bimestres para recuperar e sair do limite da média mínima. O número maior mostra em quantas disciplinas eles aparecem; o número entre parênteses mostra quantos alunos diferentes estão nessa condição.")
 
 # Resumo Executivo - Dashboard Principal
 st.markdown("""
@@ -2606,7 +2513,7 @@ with col_res2:
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, #e0f2fe, #b3e5fc); border-radius: 8px; padding: 15px; margin: 10px 0; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15); border-left: 4px solid #0ea5e9;">
         <h3 style="color: #0c4a6e; margin: 0 0 5px 0; font-size: 1em; font-weight: 600;">Corda Bamba</h3>
-        <p style="color: #64748b; margin: 0 0 8px 0; font-size: 0.85em;">Precisam de nota ≥ 7 no próximo bimestre</p>
+        <p style="color: #64748b; margin: 0 0 8px 0; font-size: 0.85em;">Precisam de média ≥ 7 nos próximos bimestres</p>
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="font-size: 1.5em; font-weight: 700; color: #0c4a6e;">{corda_bamba_count}</div>
             <div style="font-size: 1.5em; font-weight: 700; color: #64748b;">{alunos_unicos_corda_bamba} alunos</div>
@@ -2616,7 +2523,7 @@ with col_res2:
 
 with col_res3:
     # Calcular total de alunos com notas baixas
-    total_alunos_notas_baixas = max(alunos_notas_baixas_b1, alunos_notas_baixas_b2, alunos_notas_baixas_b3)
+    total_alunos_notas_baixas = max(alunos_notas_baixas_b1, alunos_notas_baixas_b2)
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, #f0f9ff, #dbeafe); border-radius: 8px; padding: 15px; margin: 10px 0; box-shadow: 0 2px 8px rgba(30, 64, 175, 0.15); border-left: 4px solid #1e40af;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -2629,7 +2536,7 @@ with col_res3:
     """, unsafe_allow_html=True)
     
     # Adicionar tooltip usando st.metric
-    st.metric("", "", help="Alunos únicos que tiveram pelo menos uma nota abaixo de 6 em qualquer bimestre. Considera o maior número entre 1º, 2º e 3º bimestres.")
+    st.metric("", "", help="Alunos únicos que tiveram pelo menos uma nota abaixo de 6 em qualquer bimestre. Considera o maior número entre 1º e 2º bimestres.")
 
 with col_res4:
     # Calcular alunos com frequência baixa se disponível
@@ -2832,15 +2739,15 @@ st.markdown("---")
 st.markdown("""
 <div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
     <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Alunos/Disciplinas em ALERTA</h2>
-    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Situações que precisam de atenção imediata (Baseado em N1, N2 e N3)</p>
+    <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Situações que precisam de atenção imediata</p>
 </div>
 """, unsafe_allow_html=True)
-cols_visiveis = [coluna_aluno, "Turma", "Disciplina", "N1", "N2", "N3", "Media123", "Classificacao", "ReqMediaProx1", "CordaBamba"]
+cols_visiveis = [coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2", "CordaBamba"]
 # Filtrar alertas excluindo os "Incompleto" (que agora têm seção própria)
 tabela_alerta = (indic[indic["Alerta"] & (indic["Classificacao"] != "Incompleto")]
                  .copy()
                  .sort_values(["Turma", coluna_aluno, "Disciplina"]))
-for c in ["N1", "N2", "N3", "Media123", "ReqMediaProx1"]:
+for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
     if c in tabela_alerta.columns:
         # Formatar para 1 casa decimal, removendo .0 desnecessário
         tabela_alerta[c] = tabela_alerta[c].round(1)
@@ -2850,13 +2757,11 @@ for c in ["N1", "N2", "N3", "Media123", "ReqMediaProx1"]:
 def color_classification(val):
     if val == "Verde":
         return "background-color: #10b981; color: white; font-weight: bold;"  # Verde forte
-    elif val == "Vermelho Triplo":
-        return "background-color: #991b1b; color: white; font-weight: bold;"  # Vermelho muito escuro
     elif val == "Vermelho Duplo":
         return "background-color: #dc2626; color: white; font-weight: bold;"  # Vermelho forte
-    elif val == "Queda p/ Vermelho" or val == "Queda Recente":
+    elif val == "Queda p/ Vermelho":
         return "background-color: #f59e0b; color: white; font-weight: bold;"  # Laranja forte
-    elif val == "Recuperou" or val == "Recuperação":
+    elif val == "Recuperou":
         return "background-color: #3b82f6; color: white; font-weight: bold;"  # Azul forte
     elif val == "Incompleto":
         return "background-color: #6b7280; color: white; font-weight: bold;"  # Cinza forte
@@ -2901,11 +2806,8 @@ if len(incompletos) > 0:
     # Incompletos do 2º bimestre: falta N2
     incompletos_b2 = incompletos[pd.isna(incompletos["N2"])].copy()
     
-    # Incompletos do 3º bimestre: falta N3
-    incompletos_b3 = incompletos[pd.isna(incompletos["N3"])].copy()
-    
     # Criar abas para cada bimestre
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Resumo Geral", "1️⃣ 1º Bimestre", "2️⃣ 2º Bimestre", "3️⃣ 3º Bimestre"])
+    tab1, tab2, tab3 = st.tabs(["📊 Resumo Geral", "1️⃣ 1º Bimestre", "2️⃣ 2º Bimestre"])
     
     with tab1:
         # Estatísticas gerais dos incompletos
@@ -2913,13 +2815,11 @@ if len(incompletos) > 0:
         alunos_unicos_incompletos = incompletos[coluna_aluno].nunique()
         total_b1 = len(incompletos_b1)
         total_b2 = len(incompletos_b2)
-        total_b3 = len(incompletos_b3)
         alunos_b1 = incompletos_b1[coluna_aluno].nunique()
         alunos_b2 = incompletos_b2[coluna_aluno].nunique()
-        alunos_b3 = incompletos_b3[coluna_aluno].nunique()
         
-        # Primeira linha: Resumo geral
-        col_gen1, col_gen2 = st.columns(2)
+        # Criar colunas para mostrar as estatísticas gerais
+        col_gen1, col_gen2, col_gen3, col_gen4 = st.columns(4)
         
         with col_gen1:
             st.markdown(f"""
@@ -2943,43 +2843,27 @@ if len(incompletos) > 0:
             </div>
             """, unsafe_allow_html=True)
         
-        # Segunda linha: Detalhamento por bimestre
-        st.markdown("#### 📊 Distribuição por Bimestre")
-        col_gen3, col_gen4, col_gen5 = st.columns(3)
-        
         with col_gen3:
             st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
-                <h3 style="color: #1e40af; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Falta 1º Bimestre</h3>
+            <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
+                <h3 style="color: #374151; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Falta 1º Bimestre</h3>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="font-size: 2.2em; font-weight: 700; color: #1e40af;">{total_b1}</div>
-                    <div style="font-size: 1.8em; font-weight: 700; color: #64748b;">disciplinas</div>
+                    <div style="font-size: 2.2em; font-weight: 700; color: #374151;">{total_b1}</div>
+                    <div style="font-size: 1.8em; font-weight: 700; color: #6b7280;">disciplinas</div>
                 </div>
-                <div style="font-size: 0.9em; color: #1e40af; margin-top: 5px;">({alunos_b1} alunos)</div>
+                <div style="font-size: 0.9em; color: #374151; margin-top: 5px;">({alunos_b1} alunos)</div>
             </div>
             """, unsafe_allow_html=True)
         
         with col_gen4:
             st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #e0f2fe, #b3e5fc); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15); border-left: 4px solid #0ea5e9;">
-                <h3 style="color: #0c4a6e; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Falta 2º Bimestre</h3>
+            <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
+                <h3 style="color: #374151; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Falta 2º Bimestre</h3>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="font-size: 2.2em; font-weight: 700; color: #0c4a6e;">{total_b2}</div>
-                    <div style="font-size: 1.8em; font-weight: 700; color: #64748b;">disciplinas</div>
+                    <div style="font-size: 2.2em; font-weight: 700; color: #374151;">{total_b2}</div>
+                    <div style="font-size: 1.8em; font-weight: 700; color: #6b7280;">disciplinas</div>
                 </div>
-                <div style="font-size: 0.9em; color: #0c4a6e; margin-top: 5px;">({alunos_b2} alunos)</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_gen5:
-            st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
-                <h3 style="color: #1e40af; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Falta 3º Bimestre</h3>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="font-size: 2.2em; font-weight: 700; color: #1e40af;">{total_b3}</div>
-                    <div style="font-size: 1.8em; font-weight: 700; color: #64748b;">disciplinas</div>
-                </div>
-                <div style="font-size: 0.9em; color: #1e40af; margin-top: 5px;">({alunos_b3} alunos)</div>
+                <div style="font-size: 0.9em; color: #374151; margin-top: 5px;">({alunos_b2} alunos)</div>
             </div>
             """, unsafe_allow_html=True)
         
@@ -2988,25 +2872,17 @@ if len(incompletos) > 0:
         incompletos_ordenados = incompletos.sort_values(["Turma", coluna_aluno, "Disciplina"])
         
         # Formatar colunas numéricas
-        for c in ["N1", "N2", "N3", "Media123", "ReqMediaProx1"]:
+        for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
             if c in incompletos_ordenados.columns:
                 incompletos_ordenados[c] = incompletos_ordenados[c].round(1)
                 incompletos_ordenados[c] = incompletos_ordenados[c].apply(lambda x: f"{x:.1f}".rstrip('0').rstrip('.') if pd.notna(x) else x)
         
         # Adicionar coluna indicando qual bimestre falta
-        def identificar_bimestre_faltante(row):
-            if pd.isna(row["N1"]):
-                return "1º Bimestre"
-            elif pd.isna(row["N2"]):
-                return "2º Bimestre"
-            elif pd.isna(row["N3"]):
-                return "3º Bimestre"
-            else:
-                return "N/A"
+        incompletos_ordenados["Falta"] = incompletos_ordenados.apply(
+            lambda row: "1º Bimestre" if pd.isna(row["N1"]) else "2º Bimestre", axis=1
+        )
         
-        incompletos_ordenados["Falta"] = incompletos_ordenados.apply(identificar_bimestre_faltante, axis=1)
-        
-        cols_incompletos_geral = [coluna_aluno, "Turma", "Disciplina", "N1", "N2", "N3", "Falta", "Classificacao"]
+        cols_incompletos_geral = [coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Falta", "Classificacao"]
         styled_incompletos_geral = incompletos_ordenados[cols_incompletos_geral].style.applymap(color_classification, subset=["Classificacao"])
         st.dataframe(styled_incompletos_geral, use_container_width=True)
         
@@ -3137,64 +3013,6 @@ if len(incompletos) > 0:
                     )
         else:
             st.success("✅ Nenhum aluno com notas incompletas do 2º bimestre.")
-    
-    with tab4:
-        # Aba do 3º Bimestre
-        st.markdown("### 3️⃣ Incompletos do 3º Bimestre (Falta N3)")
-        
-        if len(incompletos_b3) > 0:
-            # Estatísticas específicas do 3º bimestre
-            col_b3_1, col_b3_2 = st.columns(2)
-            
-            with col_b3_1:
-                st.markdown(f"""
-                <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15); border-left: 4px solid #f59e0b;">
-                    <h3 style="color: #92400e; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Disciplinas Incompletas</h3>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="font-size: 2.5em; font-weight: 700; color: #92400e;">{total_b3}</div>
-                        <div style="font-size: 2.5em; font-weight: 700; color: #64748b;">disciplinas</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col_b3_2:
-                st.markdown(f"""
-                <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 10px; padding: 18px; margin: 5px 0; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15); border-left: 4px solid #f59e0b;">
-                    <h3 style="color: #92400e; margin: 0 0 15px 0; font-size: 1.1em; font-weight: 600;">Alunos Afetados</h3>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="font-size: 2.5em; font-weight: 700; color: #92400e;">{alunos_b3}</div>
-                        <div style="font-size: 2.5em; font-weight: 700; color: #64748b;">alunos</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Ordenar e formatar dados do 3º bimestre
-            incompletos_b3_ordenados = incompletos_b3.sort_values(["Turma", coluna_aluno, "Disciplina"])
-            
-            # Formatar colunas numéricas
-            for c in ["N1", "N2", "N3", "Media123", "ReqMediaProx1"]:
-                if c in incompletos_b3_ordenados.columns:
-                    incompletos_b3_ordenados[c] = incompletos_b3_ordenados[c].round(1)
-                    incompletos_b3_ordenados[c] = incompletos_b3_ordenados[c].apply(lambda x: f"{x:.1f}".rstrip('0').rstrip('.') if pd.notna(x) else x)
-            
-            # Mostrar tabela do 3º bimestre
-            cols_incompletos_b3 = [coluna_aluno, "Turma", "Disciplina", "N1", "N2", "N3", "Media123", "Classificacao"]
-            styled_incompletos_b3 = incompletos_b3_ordenados[cols_incompletos_b3].style.applymap(color_classification, subset=["Classificacao"])
-            st.dataframe(styled_incompletos_b3, use_container_width=True)
-            
-            # Botão de exportação do 3º bimestre
-            col_export_b3_1, col_export_b3_2 = st.columns([1, 4])
-            with col_export_b3_1:
-                if st.button("📋 Exportar 3º Bimestre", key="export_incompletos_b3", help="Baixar planilha com incompletos do 3º bimestre"):
-                    excel_data = criar_excel_formatado(incompletos_b3_ordenados[cols_incompletos_b3], "Incompletos_3_Bimestre")
-                    st.download_button(
-                        label="Baixar Excel",
-                        data=excel_data,
-                        file_name="incompletos_3_bimestre.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-        else:
-            st.success("✅ Nenhum aluno com notas incompletas do 3º bimestre.")
 
 else:
     st.info("✅ Nenhum aluno com disciplinas incompletas encontrado.")
@@ -3210,31 +3028,25 @@ st.markdown("""
 # Calcular estudantes únicos por bimestre
 alunos_notas_baixas_b1_unicos = set()
 alunos_notas_baixas_b2_unicos = set()
-alunos_notas_baixas_b3_unicos = set()
 
 if len(notas_baixas_b1) > 0:
     alunos_notas_baixas_b1_unicos = set(notas_baixas_b1[coluna_aluno].unique())
 if len(notas_baixas_b2) > 0:
     alunos_notas_baixas_b2_unicos = set(notas_baixas_b2[coluna_aluno].unique())
-if len(notas_baixas_b3) > 0:
-    alunos_notas_baixas_b3_unicos = set(notas_baixas_b3[coluna_aluno].unique())
 
 alunos_incompletos_b1_unicos = set()
 alunos_incompletos_b2_unicos = set()
-alunos_incompletos_b3_unicos = set()
 
 if len(incompletos) > 0:
     if len(incompletos_b1) > 0:
         alunos_incompletos_b1_unicos = set(incompletos_b1[coluna_aluno].unique())
     if len(incompletos_b2) > 0:
         alunos_incompletos_b2_unicos = set(incompletos_b2[coluna_aluno].unique())
-    if len(incompletos_b3) > 0:
-        alunos_incompletos_b3_unicos = set(incompletos_b3[coluna_aluno].unique())
 
 # Criar seção por bimestres
 st.markdown("### 📋 Resumo por Bimestre")
 
-col_bim1, col_bim2, col_bim3 = st.columns(3)
+col_bim1, col_bim2 = st.columns(2)
 
 with col_bim1:
     st.markdown("#### 1º Bimestre")
@@ -3252,9 +3064,9 @@ with col_bim1:
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span style="color: #374151; font-weight: 700;">Total 1º Bimestre:</span>
                 <div style="text-align: right;">
-                    <span style="color: #374151; font-weight: 700; font-size: 1.3em;">{len(alunos_notas_baixas_b1_unicos | alunos_incompletos_b1_unicos)} alunos</span>
+                    <span style="color: #374151; font-weight: 700; font-size: 1.3em;">{len(alunos_notas_baixas_b1_unicos) + len(alunos_incompletos_b1_unicos)} alunos</span>
                     <div style="color: #6b7280; font-size: 0.9em; font-weight: 600;">
-                        ({(len(alunos_notas_baixas_b1_unicos | alunos_incompletos_b1_unicos) / df_filt[coluna_aluno].nunique() * 100):.1f}% do total)
+                        ({((len(alunos_notas_baixas_b1_unicos) + len(alunos_incompletos_b1_unicos)) / df_filt[coluna_aluno].nunique() * 100):.1f}% do total)
                     </div>
                 </div>
             </div>
@@ -3265,48 +3077,22 @@ with col_bim1:
 with col_bim2:
     st.markdown("#### 2º Bimestre")
     st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #e0f2fe, #b3e5fc); border-radius: 8px; padding: 15px; margin: 5px 0; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15); border-left: 4px solid #0ea5e9;">
+    <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 8px; padding: 15px; margin: 5px 0; box-shadow: 0 2px 8px rgba(107, 114, 128, 0.15); border-left: 4px solid #6b7280;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="color: #0c4a6e; font-weight: 600;">Notas Baixas:</span>
-            <span style="color: #0c4a6e; font-weight: 700; font-size: 1.2em;">{len(alunos_notas_baixas_b2_unicos)} alunos</span>
+            <span style="color: #374151; font-weight: 600;">Notas Baixas:</span>
+            <span style="color: #374151; font-weight: 700; font-size: 1.2em;">{len(alunos_notas_baixas_b2_unicos)} alunos</span>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-            <span style="color: #0c4a6e; font-weight: 600;">Incompletos:</span>
-            <span style="color: #0c4a6e; font-weight: 700; font-size: 1.2em;">{len(alunos_incompletos_b2_unicos)} alunos</span>
+            <span style="color: #374151; font-weight: 600;">Incompletos:</span>
+            <span style="color: #374151; font-weight: 700; font-size: 1.2em;">{len(alunos_incompletos_b2_unicos)} alunos</span>
         </div>
-        <div style="border-top: 1px solid #7dd3fc; margin-top: 10px; padding-top: 8px;">
+        <div style="border-top: 1px solid #d1d5db; margin-top: 10px; padding-top: 8px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #0c4a6e; font-weight: 700;">Total 2º Bimestre:</span>
+                <span style="color: #374151; font-weight: 700;">Total 2º Bimestre:</span>
                 <div style="text-align: right;">
-                    <span style="color: #0c4a6e; font-weight: 700; font-size: 1.3em;">{len(alunos_notas_baixas_b2_unicos | alunos_incompletos_b2_unicos)} alunos</span>
-                    <div style="color: #64748b; font-size: 0.9em; font-weight: 600;">
-                        ({(len(alunos_notas_baixas_b2_unicos | alunos_incompletos_b2_unicos) / df_filt[coluna_aluno].nunique() * 100):.1f}% do total)
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col_bim3:
-    st.markdown("#### 3º Bimestre")
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border-radius: 8px; padding: 15px; margin: 5px 0; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="color: #1e40af; font-weight: 600;">Notas Baixas:</span>
-            <span style="color: #1e40af; font-weight: 700; font-size: 1.2em;">{len(alunos_notas_baixas_b3_unicos)} alunos</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-            <span style="color: #1e40af; font-weight: 600;">Incompletos:</span>
-            <span style="color: #1e40af; font-weight: 700; font-size: 1.2em;">{len(alunos_incompletos_b3_unicos)} alunos</span>
-        </div>
-        <div style="border-top: 1px solid #93c5fd; margin-top: 10px; padding-top: 8px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #1e40af; font-weight: 700;">Total 3º Bimestre:</span>
-                <div style="text-align: right;">
-                    <span style="color: #1e40af; font-weight: 700; font-size: 1.3em;">{len(alunos_notas_baixas_b3_unicos | alunos_incompletos_b3_unicos)} alunos</span>
-                    <div style="color: #64748b; font-size: 0.9em; font-weight: 600;">
-                        ({(len(alunos_notas_baixas_b3_unicos | alunos_incompletos_b3_unicos) / df_filt[coluna_aluno].nunique() * 100):.1f}% do total)
+                    <span style="color: #374151; font-weight: 700; font-size: 1.3em;">{len(alunos_notas_baixas_b2_unicos) + len(alunos_incompletos_b2_unicos)} alunos</span>
+                    <div style="color: #6b7280; font-size: 0.9em; font-weight: 600;">
+                        ({((len(alunos_notas_baixas_b2_unicos) + len(alunos_incompletos_b2_unicos)) / df_filt[coluna_aluno].nunique() * 100):.1f}% do total)
                     </div>
                 </div>
             </div>
@@ -3318,12 +3104,12 @@ with col_bim3:
 # Tabela: Panorama Geral de Notas (todos para diagnóstico rápido)
 st.markdown("""
 <div style="background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(30, 64, 175, 0.2);">
-    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Panorama Geral de Notas (B1→B2→B3)</h2>
+    <h2 style="color: white; text-align: center; margin: 0; font-size: 1.7em; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.3);">Panorama Geral de Notas (B1→B2)</h2>
     <p style="color: rgba(255,255,255,0.9); text-align: center; margin: 8px 0 0 0; font-size: 1.1em; font-weight: 500;">Visão completa de todos os alunos e disciplinas</p>
 </div>
 """, unsafe_allow_html=True)
 tab_diag = indic.copy()
-for c in ["N1", "N2", "N3", "Media123", "ReqMediaProx1"]:
+for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
     if c in tab_diag.columns:
         # Formatar para 1 casa decimal, removendo .0 desnecessário
         tab_diag[c] = tab_diag[c].round(1)
@@ -3332,7 +3118,7 @@ for c in ["N1", "N2", "N3", "Media123", "ReqMediaProx1"]:
 
 
 # Aplicar estilização
-styled_table = tab_diag[[coluna_aluno, "Turma", "Disciplina", "N1", "N2", "N3", "Media123", "Classificacao", "ReqMediaProx1"]]\
+styled_table = tab_diag[[coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]]\
     .sort_values(["Turma", coluna_aluno, "Disciplina"])\
     .style.applymap(color_classification, subset=["Classificacao"])
 
@@ -3342,7 +3128,7 @@ st.dataframe(styled_table, use_container_width=True)
 col_export3, col_export4 = st.columns([1, 4])
 with col_export3:
         if st.button("📊 Exportar Panorama", key="export_panorama", help="Baixar planilha com panorama geral de notas"):
-            excel_data = criar_excel_formatado(tab_diag[[coluna_aluno, "Turma", "Disciplina", "N1", "N2", "N3", "Media123", "Classificacao", "ReqMediaProx1"]], "Panorama_Geral_Notas")
+            excel_data = criar_excel_formatado(tab_diag[[coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]], "Panorama_Geral_Notas")
             st.download_button(
                 label="Baixar Excel",
                 data=excel_data,
@@ -3356,42 +3142,38 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown("""
     <div style="background-color: #10b981; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
-        🟢 Verde: Todas as notas ≥6
+        🟢 Verde: Aluno está bem (N1≥6 e N2≥6)
     </div>
     <div style="background-color: #dc2626; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
-        🔴 Vermelho Triplo: Risco crítico (N1, N2 e N3 < 6)
-    </div>
-    <div style="background-color: #ef4444; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
-        🔴 Vermelho Duplo: Risco alto (duas notas < 6)
+        🔴 Vermelho Duplo: Risco alto (N1<6 e N2<6)
     </div>
     """, unsafe_allow_html=True)
 with col2:
     st.markdown("""
     <div style="background-color: #f59e0b; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
-        🟠 Queda Recente: Caiu no 3º bimestre
+        🟠 Queda p/ Vermelho: Piorou (N1≥6 e N2<6)
     </div>
     <div style="background-color: #3b82f6; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
-        🔵 Recuperação: Melhorou no 3º bimestre
+        🔵 Recuperou: Melhorou (N1<6 e N2≥6)
     </div>
     """, unsafe_allow_html=True)
 with col3:
     st.markdown("""
     <div style="background-color: #6b7280; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
-        ⚪ Incompleto: Falta nota de algum bimestre
+        ⚪ Incompleto: Falta nota
     </div>
     <div style="background-color: #8b5cf6; color: white; padding: 8px; border-radius: 5px; margin: 5px 0; font-weight: bold; text-align: center;">
-        🟣 Corda Bamba: Precisa ≥7 no próximo
+        🟣 Corda Bamba: Precisa ≥7 nos próximos 2
     </div>
     """, unsafe_allow_html=True)
 
 st.markdown(
     """
     **Interpretação rápida**  
-    - *Vermelho Triplo*: situação crítica - todas as notas abaixo de 6 (N1, N2 e N3).  
-    - *Vermelho Duplo*: risco alto - duas das três notas abaixo de 6.  
-    - *Queda Recente*: estava indo bem mas caiu no 3º bimestre - atenção!  
-    - *Recuperação*: estava com dificuldade mas melhorou no 3º bimestre.  
-    - *Corda Bamba*: para fechar média 6 no ano, precisa tirar **≥ 7,0** no 4º bimestre.
+    - *Vermelho Duplo*: segue risco alto (dois bimestres < 6).  
+    - *Queda p/ Vermelho*: atenção no 3º bimestre (piora do 1º para o 2º).  
+    - *Recuperou*: saiu do vermelho no 2º.  
+    - *Corda Bamba*: para fechar média 6 no ano, precisa tirar **≥ 7,0** em média no 3º e 4º.
     """
 )
 
@@ -3407,9 +3189,9 @@ st.markdown("""
 # Seção de Gráficos de Notas por Disciplina
 st.markdown("### 📊 Gráficos de Notas Abaixo da Média por Disciplina")
 
-# Gráfico Geral (1º + 2º + 3º Bimestre)
-with st.expander("📈 Geral - Notas Abaixo da Média por Disciplina (1º + 2º + 3º Bimestre)"):
-    base_baixas = pd.concat([notas_baixas_b1, notas_baixas_b2, notas_baixas_b3], ignore_index=True)
+# Gráfico Geral (1º + 2º Bimestre)
+with st.expander("📈 Geral - Notas Abaixo da Média por Disciplina (1º + 2º Bimestre)"):
+    base_baixas = pd.concat([notas_baixas_b1, notas_baixas_b2], ignore_index=True)
     if len(base_baixas) > 0:
         # Contar notas por disciplina
         contagem = base_baixas.groupby("Disciplina")["Nota"].count().reset_index()
@@ -3422,7 +3204,7 @@ with st.expander("📈 Geral - Notas Abaixo da Média por Disciplina (1º + 2º 
         contagem['Cor'] = ['#1e40af' if i % 2 == 0 else '#059669' for i in range(len(contagem))]
         
         fig = px.bar(contagem, x="Disciplina", y="Qtd Notas < 6", 
-                    title="Notas abaixo da média (1º + 2º + 3º Bimestre)",
+                    title="Notas abaixo da média (1º + 2º Bimestre)",
                     color="Cor",
                     color_discrete_map={'#1e40af': '#1e40af', '#059669': '#059669'})
         
@@ -3456,7 +3238,7 @@ with st.expander("📈 Geral - Notas Abaixo da Média por Disciplina (1º + 2º 
         st.info("Sem notas abaixo da média para os filtros atuais.")
 
 # Gráficos separados por bimestre
-col_graf1, col_graf2, col_graf3 = st.columns(3)
+col_graf1, col_graf2 = st.columns(2)
 
 # Gráfico 1º Bimestre
 with col_graf1:
@@ -3549,140 +3331,6 @@ with col_graf2:
                 )
         else:
             st.info("Sem notas abaixo da média no 2º bimestre para os filtros atuais.")
-
-# Gráfico 3º Bimestre
-with col_graf3:
-    with st.expander("📊 3º Bimestre - Notas Abaixo da Média por Disciplina"):
-        if len(notas_baixas_b3) > 0:
-            # Contar notas por disciplina no 3º bimestre
-            contagem_b3 = notas_baixas_b3.groupby("Disciplina")["Nota"].count().reset_index()
-            contagem_b3 = contagem_b3.rename(columns={"Nota": "Qtd Notas < 6"})
-            
-            # Ordenar em ordem decrescente (maior para menor)
-            contagem_b3 = contagem_b3.sort_values("Qtd Notas < 6", ascending=False).reset_index(drop=True)
-            
-            # Adicionar coluna de cores intercaladas baseada na posição após ordenação
-            contagem_b3['Cor'] = ['#3b82f6' if i % 2 == 0 else '#60a5fa' for i in range(len(contagem_b3))]
-            
-            fig_b3 = px.bar(contagem_b3, x="Disciplina", y="Qtd Notas < 6", 
-                           title="Notas abaixo da média - 3º Bimestre",
-                           color="Cor",
-                           color_discrete_map={'#3b82f6': '#3b82f6', '#60a5fa': '#60a5fa'})
-            
-            # Forçar a ordem das disciplinas no eixo X
-            fig_b3.update_layout(
-                xaxis_title=None, 
-                yaxis_title="Quantidade", 
-                bargap=0.25, 
-                showlegend=False, 
-                xaxis_tickangle=45,
-                xaxis={'categoryorder': 'array', 'categoryarray': contagem_b3['Disciplina'].tolist()}
-            )
-            st.plotly_chart(fig_b3, use_container_width=True)
-            
-            # Botão de exportação para dados do gráfico 3º bimestre
-            if st.button("📊 Exportar 3º Bimestre", key="export_grafico_notas_b3", help="Baixar planilha com dados do 3º bimestre"):
-                # Preparar dados para exportação (remover coluna de cor)
-                dados_export_b3 = contagem_b3[['Disciplina', 'Qtd Notas < 6']].copy()
-                dados_export_b3 = dados_export_b3.rename(columns={'Qtd Notas < 6': 'Quantidade_Notas_Abaixo_6'})
-                
-                excel_data = criar_excel_formatado(dados_export_b3, "Notas_Por_Disciplina_B3")
-                st.download_button(
-                    label="Baixar Excel",
-                    data=excel_data,
-                    file_name="notas_por_disciplina_3bimestre.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-        else:
-            st.info("Sem notas abaixo da média no 3º bimestre para os filtros atuais.")
-
-# Nova seção: Gráficos de Barras - Aprovados x Reprovados
-st.markdown("---")
-st.markdown("### 📊 Distribuição de Alunos: Aprovados vs Reprovados por Bimestre")
-
-# Calcular aprovados e reprovados por bimestre (alunos únicos)
-col_pizza1, col_pizza2, col_pizza3 = st.columns(3)
-
-# 1º Bimestre
-with col_pizza1:
-    st.markdown("#### 1º Bimestre")
-    total_alunos_b1 = df_filt[df_filt["Periodo"].str.contains("Primeiro", case=False, na=False)][coluna_aluno].nunique()
-    aprovados_b1 = total_alunos_b1 - alunos_notas_baixas_b1
-    
-    if total_alunos_b1 > 0:
-        dados_barra_b1 = pd.DataFrame({
-            'Status': ['Aprovados (≥6)', 'Reprovados (<6)'],
-            'Quantidade': [aprovados_b1, alunos_notas_baixas_b1]
-        })
-        
-        fig_barra_b1 = px.bar(dados_barra_b1, x='Status', y='Quantidade',
-                              title=f"Total: {total_alunos_b1} alunos",
-                              color='Status',
-                              color_discrete_map={'Aprovados (≥6)': '#10b981', 'Reprovados (<6)': '#dc2626'},
-                              text='Quantidade')
-        fig_barra_b1.update_traces(texttemplate='%{text} (%{y:.0%})', textposition='outside')
-        fig_barra_b1.update_layout(showlegend=False, yaxis_title="Quantidade de Alunos", xaxis_title=None)
-        st.plotly_chart(fig_barra_b1, use_container_width=True)
-        
-        # Métricas
-        st.metric("Aprovados", f"{aprovados_b1} ({aprovados_b1/total_alunos_b1*100:.1f}%)")
-        st.metric("Reprovados", f"{alunos_notas_baixas_b1} ({alunos_notas_baixas_b1/total_alunos_b1*100:.1f}%)")
-    else:
-        st.info("Sem dados do 1º bimestre")
-
-# 2º Bimestre
-with col_pizza2:
-    st.markdown("#### 2º Bimestre")
-    total_alunos_b2 = df_filt[df_filt["Periodo"].str.contains("Segundo", case=False, na=False)][coluna_aluno].nunique()
-    aprovados_b2 = total_alunos_b2 - alunos_notas_baixas_b2
-    
-    if total_alunos_b2 > 0:
-        dados_barra_b2 = pd.DataFrame({
-            'Status': ['Aprovados (≥6)', 'Reprovados (<6)'],
-            'Quantidade': [aprovados_b2, alunos_notas_baixas_b2]
-        })
-        
-        fig_barra_b2 = px.bar(dados_barra_b2, x='Status', y='Quantidade',
-                              title=f"Total: {total_alunos_b2} alunos",
-                              color='Status',
-                              color_discrete_map={'Aprovados (≥6)': '#10b981', 'Reprovados (<6)': '#7c3aed'},
-                              text='Quantidade')
-        fig_barra_b2.update_traces(texttemplate='%{text} (%{y:.0%})', textposition='outside')
-        fig_barra_b2.update_layout(showlegend=False, yaxis_title="Quantidade de Alunos", xaxis_title=None)
-        st.plotly_chart(fig_barra_b2, use_container_width=True)
-        
-        # Métricas
-        st.metric("Aprovados", f"{aprovados_b2} ({aprovados_b2/total_alunos_b2*100:.1f}%)")
-        st.metric("Reprovados", f"{alunos_notas_baixas_b2} ({alunos_notas_baixas_b2/total_alunos_b2*100:.1f}%)")
-    else:
-        st.info("Sem dados do 2º bimestre")
-
-# 3º Bimestre
-with col_pizza3:
-    st.markdown("#### 3º Bimestre")
-    total_alunos_b3 = df_filt[df_filt["Periodo"].str.contains("Terceiro", case=False, na=False)][coluna_aluno].nunique()
-    aprovados_b3 = total_alunos_b3 - alunos_notas_baixas_b3
-    
-    if total_alunos_b3 > 0:
-        dados_barra_b3 = pd.DataFrame({
-            'Status': ['Aprovados (≥6)', 'Reprovados (<6)'],
-            'Quantidade': [aprovados_b3, alunos_notas_baixas_b3]
-        })
-        
-        fig_barra_b3 = px.bar(dados_barra_b3, x='Status', y='Quantidade',
-                              title=f"Total: {total_alunos_b3} alunos",
-                              color='Status',
-                              color_discrete_map={'Aprovados (≥6)': '#10b981', 'Reprovados (<6)': '#3b82f6'},
-                              text='Quantidade')
-        fig_barra_b3.update_traces(texttemplate='%{text} (%{y:.0%})', textposition='outside')
-        fig_barra_b3.update_layout(showlegend=False, yaxis_title="Quantidade de Alunos", xaxis_title=None)
-        st.plotly_chart(fig_barra_b3, use_container_width=True)
-        
-        # Métricas
-        st.metric("Aprovados", f"{aprovados_b3} ({aprovados_b3/total_alunos_b3*100:.1f}%)")
-        st.metric("Reprovados", f"{alunos_notas_baixas_b3} ({alunos_notas_baixas_b3/total_alunos_b3*100:.1f}%)")
-    else:
-        st.info("Sem dados do 3º bimestre")
 
 # Gráfico: Distribuição de Frequência por Faixas
 col_graf1, col_graf2 = st.columns(2)
