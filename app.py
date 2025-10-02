@@ -1910,23 +1910,23 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # Barra de navegação com opções do usuário
-col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([2, 1, 1, 1, 1])
+col_nav1, col_nav2, col_nav3, col_nav4 = st.columns([1, 1, 1, 1])
 
-with col_nav2:
+with col_nav1:
     if st.button("🔑 Alterar Senha", use_container_width=True, key="btn_alterar_senha"):
         st.session_state.mostrar_alterar_senha = True
         st.rerun()
 
-with col_nav3:
+with col_nav2:
     if st.button("ℹ️ Sobre", use_container_width=True, key="btn_sobre"):
         st.session_state.mostrar_sobre = True
 
-with col_nav4:
+with col_nav3:
     if MONITORING_AVAILABLE and st.button("🔐 Admin", use_container_width=True, key="btn_admin"):
         st.session_state.mostrar_admin = True
         st.rerun()
 
-with col_nav5:
+with col_nav4:
     if st.button("🚪 Sair", use_container_width=True, key="btn_sair"):
         # Registrar logout se disponível
         if MONITORING_AVAILABLE and st.session_state.usuario:
@@ -1943,6 +1943,25 @@ with col_nav5:
         st.session_state.logado = False
         st.session_state.usuario = None
         st.rerun()
+
+# Botão Versão 3 bimestres centralizado abaixo dos outros botões
+st.markdown("""
+<style>
+.stButton > button[kind="primary"] {
+    background-color: #28a745 !important;
+    border-color: #28a745 !important;
+    color: white !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background-color: #218838 !important;
+    border-color: #1e7e34 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+col_center1, col_center2, col_center3 = st.columns([1, 1, 1])
+with col_center2:
+    st.link_button("📊 Versão 3 bimestres", "https://painel-sge-terceiro-bimestre-bwu2rnpej5yhdzelxanyrf.streamlit.app", use_container_width=True, type="primary")
 
 st.markdown("---")
 
