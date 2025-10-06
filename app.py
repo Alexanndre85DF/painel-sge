@@ -338,7 +338,7 @@ def tela_instrucoes():
     
     # Assinatura
     st.markdown("---")
-    st.markdown("<div style='text-align: center; padding: 2rem;'><strong style='color: #4a90e2; font-size: 1.1rem;'>Desenvolvido por Alexandre Tolentino</strong></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; padding: 2rem;'><strong style='color: #4a90e2; font-size: 1.1rem;'>© 2025 – desenvolvido por Alexandre Tolentinoo</strong></div>", unsafe_allow_html=True)
 
 def tela_login():
     """Exibe tela de login"""
@@ -407,7 +407,7 @@ def tela_login():
         
         # Assinatura centralizada
         st.markdown("---")
-        st.markdown("<div style='text-align: center;'><strong>Desenvolvido por Alexandre Tolentino</strong></div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align: center;'><strong>© 2025 – desenvolvido por Alexandre Tolentino</strong></div>", unsafe_allow_html=True)
 
 def tela_sobre():
     """Exibe modal com informações sobre o sistema"""
