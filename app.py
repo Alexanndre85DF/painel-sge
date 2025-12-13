@@ -838,6 +838,23 @@ def processar_notas_frequencia(df):
         df = df.rename(columns={"Frequência": "Frequencia"})
     if "Frequência Anual" in df.columns and "Frequencia Anual" not in df.columns:
         df = df.rename(columns={"Frequência Anual": "Frequencia Anual"})
+    
+    # Detectar se é planilha do tipo "AtaMapa" (tem coluna "Estudante" e "Composicao")
+    # Para este tipo de planilha, filtrar apenas primeiro e segundo bimestre
+    is_atamapa = "Estudante" in df.columns and "Composicao" in df.columns
+    
+    if is_atamapa and "Periodo" in df.columns:
+        # Normalizar valores de período para comparação (já feito acima, mas garantir)
+        df["Periodo"] = df["Periodo"].astype(str).str.strip()
+        # Filtrar apenas primeiro e segundo bimestre usando a mesma lógica de mapear_bimestre
+        def is_bimestre_1_ou_2(periodo):
+            """Verifica se o período é primeiro ou segundo bimestre"""
+            if not isinstance(periodo, str):
+                return False
+            p = periodo.lower()
+            return ("primeiro" in p or "1º" in p or "1o" in p) or ("segundo" in p or "2º" in p or "2o" in p)
+        
+        df = df[df["Periodo"].apply(is_bimestre_1_ou_2)].copy()
 
     # Converter Nota (vírgula -> ponto, texto -> float)
     if "Nota" in df.columns:
