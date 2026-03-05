@@ -2113,25 +2113,6 @@ with col_nav3:
         st.session_state.login_at = None
         st.rerun()
 
-# Botão Versão 3 bimestres centralizado abaixo dos outros botões
-st.markdown("""
-<style>
-.stButton > button[kind="primary"] {
-    background-color: #28a745 !important;
-    border-color: #28a745 !important;
-    color: white !important;
-}
-.stButton > button[kind="primary"]:hover {
-    background-color: #218838 !important;
-    border-color: #1e7e34 !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-col_center1, col_center2, col_center3 = st.columns([1, 1, 1])
-with col_center2:
-    st.link_button("📊 Versão 3 bimestres", "https://painel-sge-terceiro-bimestre-bwu2rnpej5yhdzelxanyrf.streamlit.app", use_container_width=True, type="primary")
-
 st.markdown("---")
 
 col_upl, col_info = st.columns([1, 2])
