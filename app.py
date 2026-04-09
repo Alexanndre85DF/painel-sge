@@ -13,6 +13,18 @@ import json
 from datetime import datetime, timedelta
 import os
 
+
+def _style_apply_cells(df_or_styler, func, subset=None):
+    """Estiliza células: pandas >=2.1 usa Styler.map; versões antigas usam applymap."""
+    if isinstance(df_or_styler, pd.DataFrame):
+        styler = df_or_styler.style
+    else:
+        styler = df_or_styler
+    if hasattr(styler, "map"):
+        return styler.map(func, subset=subset)
+    return styler.applymap(func, subset=subset)
+
+
 # Carregar variáveis de ambiente
 try:
     from dotenv import load_dotenv
@@ -2863,8 +2875,11 @@ with st.expander(expander_title):
         )
         
         # Aplicar cores
-        styled_freq = freq_detalhada[[coluna_aluno, "Turma", "Frequencia_Formatada", "Classificacao_Freq"]]\
-            .style.applymap(color_frequencia, subset=["Classificacao_Freq"])
+        styled_freq = _style_apply_cells(
+            freq_detalhada[[coluna_aluno, "Turma", "Frequencia_Formatada", "Classificacao_Freq"]],
+            color_frequencia,
+            ["Classificacao_Freq"],
+        )
         
         st.dataframe(styled_freq, use_container_width=True)
         
@@ -2939,7 +2954,7 @@ def color_classification(val):
 
 # Aplicar cores na tabela de alertas também
 if len(tabela_alerta) > 0:
-    styled_alerta = tabela_alerta[cols_visiveis].style.applymap(color_classification, subset=["Classificacao"])
+    styled_alerta = _style_apply_cells(tabela_alerta[cols_visiveis], color_classification, ["Classificacao"])
     st.dataframe(styled_alerta, use_container_width=True)
     
     # Botão de exportação para alertas
@@ -3052,7 +3067,9 @@ if len(incompletos) > 0:
         )
         
         cols_incompletos_geral = [coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Falta", "Classificacao"]
-        styled_incompletos_geral = incompletos_ordenados[cols_incompletos_geral].style.applymap(color_classification, subset=["Classificacao"])
+        styled_incompletos_geral = _style_apply_cells(
+            incompletos_ordenados[cols_incompletos_geral], color_classification, ["Classificacao"]
+        )
         st.dataframe(styled_incompletos_geral, use_container_width=True)
         
         # Botão de exportação geral
@@ -3108,7 +3125,9 @@ if len(incompletos) > 0:
             
             # Mostrar tabela do 1º bimestre
             cols_incompletos_b1 = [coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao"]
-            styled_incompletos_b1 = incompletos_b1_ordenados[cols_incompletos_b1].style.applymap(color_classification, subset=["Classificacao"])
+            styled_incompletos_b1 = _style_apply_cells(
+                incompletos_b1_ordenados[cols_incompletos_b1], color_classification, ["Classificacao"]
+            )
             st.dataframe(styled_incompletos_b1, use_container_width=True)
             
             # Botão de exportação do 1º bimestre
@@ -3166,7 +3185,9 @@ if len(incompletos) > 0:
             
             # Mostrar tabela do 2º bimestre
             cols_incompletos_b2 = [coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao"]
-            styled_incompletos_b2 = incompletos_b2_ordenados[cols_incompletos_b2].style.applymap(color_classification, subset=["Classificacao"])
+            styled_incompletos_b2 = _style_apply_cells(
+                incompletos_b2_ordenados[cols_incompletos_b2], color_classification, ["Classificacao"]
+            )
             st.dataframe(styled_incompletos_b2, use_container_width=True)
             
             # Botão de exportação do 2º bimestre
@@ -3287,9 +3308,13 @@ for c in ["N1", "N2", "Media12", "ReqMediaProx2"]:
 
 
 # Aplicar estilização
-styled_table = tab_diag[[coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]]\
-    .sort_values(["Turma", coluna_aluno, "Disciplina"])\
-    .style.applymap(color_classification, subset=["Classificacao"])
+styled_table = _style_apply_cells(
+    tab_diag[[coluna_aluno, "Turma", "Disciplina", "N1", "N2", "Media12", "Classificacao", "ReqMediaProx2"]].sort_values(
+        ["Turma", coluna_aluno, "Disciplina"]
+    ),
+    color_classification,
+    ["Classificacao"],
+)
 
 st.dataframe(styled_table, use_container_width=True)
 
@@ -3639,10 +3664,10 @@ with st.expander("Análise Cruzada: Notas x Frequência"):
                         return ""
                 
                 # Aplicar cores nas duas colunas de classificação
-                styled_cruzada = freq_baixa_display.style.applymap(
-                    color_classification, subset=["Classificacao"]
-                ).applymap(
-                    color_frequencia_classification, subset=["Classificacao_Freq"]
+                styled_cruzada = _style_apply_cells(
+                    _style_apply_cells(freq_baixa_display, color_classification, ["Classificacao"]),
+                    color_frequencia_classification,
+                    ["Classificacao_Freq"],
                 )
                 
                 st.dataframe(styled_cruzada, use_container_width=True)
@@ -3890,7 +3915,7 @@ if len(alunos_duplicados) > 0:
             return ""
     
     # Aplicar cores
-    styled_duplicados = df_alunos_duplicados.style.applymap(color_qtd_turmas, subset=["Qtd_Turmas"])
+    styled_duplicados = _style_apply_cells(df_alunos_duplicados, color_qtd_turmas, ["Qtd_Turmas"])
     
     st.dataframe(styled_duplicados, use_container_width=True)
     
