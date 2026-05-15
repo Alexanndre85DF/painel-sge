@@ -1114,6 +1114,10 @@ def classificar_frequencia_faixa(freq):
     return "Meta Favorável"
 
 
+# Nome usado em gráficos e exportação (mesma lógica de classificar_frequencia_faixa)
+classificar_frequencia_geral = classificar_frequencia_faixa
+
+
 def _mascara_periodo_bimestre(serie_periodo, bimestre):
     per = serie_periodo.astype(str)
     if bimestre == 1:
