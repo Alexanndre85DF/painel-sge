@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 from io import BytesIO
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment
@@ -3527,25 +3528,34 @@ with st.expander("📊 Ranking das turmas — média geral (da melhor para a pio
         else:
             media_por_turma["Media_notas"] = media_por_turma["Media_notas"].round(2)
             media_ord = media_por_turma.sort_values("Media_notas", ascending=False).reset_index(drop=True)
-            media_ord["Cor"] = ["#059669" if i % 2 == 0 else "#0ea5e9" for i in range(len(media_ord))]
-            fig_turmas = px.bar(
-                media_ord,
-                x="Media_notas",
-                y="Turma",
-                orientation="h",
-                title="Média geral das notas por turma (1º + 2º bimestres, todas as disciplinas)",
-                color="Cor",
-                color_discrete_map={"#059669": "#059669", "#0ea5e9": "#0ea5e9"},
+            cores_bar = ["#059669" if i % 2 == 0 else "#0ea5e9" for i in range(len(media_ord))]
+            # categoryarray: na horizontal, a 1ª categoria costuma aparecer no TOPO → melhor média primeiro
+            cats_y = media_ord["Turma"].tolist()
+            fig_turmas = go.Figure(
+                data=[
+                    go.Bar(
+                        x=media_ord["Media_notas"],
+                        y=media_ord["Turma"],
+                        orientation="h",
+                        marker=dict(color=cores_bar),
+                    )
+                ]
             )
             fig_turmas.update_layout(
-                yaxis=dict(
-                    categoryorder="array",
-                    categoryarray=media_ord["Turma"].tolist(),
+                title=dict(
+                    text="Média geral das notas por turma (1º + 2º bimestres, todas as disciplinas)",
+                    font=dict(size=16),
                 ),
                 xaxis_title="Média das notas",
-                yaxis_title=None,
+                yaxis=dict(
+                    type="category",
+                    categoryorder="array",
+                    categoryarray=cats_y,
+                    title=None,
+                ),
                 showlegend=False,
                 bargap=0.2,
+                margin=dict(l=min(280, 12 + int(media_ord["Turma"].str.len().max()) * 7)),
             )
             st.plotly_chart(fig_turmas, use_container_width=True)
             st.caption(
