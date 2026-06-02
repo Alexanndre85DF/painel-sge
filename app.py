@@ -3634,14 +3634,12 @@ with st.expander("📊 Ranking das turmas — média geral (da melhor para a pio
             media_por_turma["Media_notas"] = media_por_turma["Media_notas"].round(2)
             media_ord = media_por_turma.sort_values("Media_notas", ascending=False).reset_index(drop=True)
             cores_bar = ["#059669" if i % 2 == 0 else "#0ea5e9" for i in range(len(media_ord))]
-            # categoryarray: na horizontal, a 1ª categoria costuma aparecer no TOPO → melhor média primeiro
-            cats_y = media_ord["Turma"].tolist()
+            cats_x = media_ord["Turma"].tolist()
             fig_turmas = go.Figure(
                 data=[
                     go.Bar(
-                        x=media_ord["Media_notas"],
-                        y=media_ord["Turma"],
-                        orientation="h",
+                        x=media_ord["Turma"],
+                        y=media_ord["Media_notas"],
                         marker=dict(color=cores_bar),
                     )
                 ]
@@ -3651,21 +3649,22 @@ with st.expander("📊 Ranking das turmas — média geral (da melhor para a pio
                     text="Média geral das notas por turma (1º + 2º bimestres, todas as disciplinas)",
                     font=dict(size=16),
                 ),
-                xaxis_title="Média das notas",
-                yaxis=dict(
+                xaxis=dict(
                     type="category",
                     categoryorder="array",
-                    categoryarray=cats_y,
+                    categoryarray=cats_x,
                     title=None,
+                    tickangle=45,
                 ),
+                yaxis_title="Média das notas",
                 showlegend=False,
                 bargap=0.2,
-                margin=dict(l=min(280, 12 + int(media_ord["Turma"].str.len().max()) * 7)),
+                margin=dict(b=100),
             )
             st.plotly_chart(fig_turmas, use_container_width=True)
             st.caption(
                 "Cada barra é a **média aritmética de todas as notas** da turma (todas as disciplinas nos períodos "
-                "presentes nos dados filtrados). Ordem: **maior média no topo** (melhor desempenho)."
+                "presentes nos dados filtrados). Ordem: **da maior para a menor média** (esquerda → direita)."
             )
 
 # Gráfico: Distribuição de Frequência por Faixas
